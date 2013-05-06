@@ -190,13 +190,13 @@ class BaseAPI(MethodView):
         current_app.logger.debug("Query Args: %s" % args)
         return args
 
-    def _pre_validate(self, data):
+    def _pre_validate(self, data, **kwargs):
         """ System pre-validate to prevent overwriting id"""
         if '_id' in data:
             del data['_id']
-        return self.pre_validate(data)
+        return self.pre_validate(data, **kwargs)
 
-    def pre_validate(self, data):
+    def pre_validate(self, data, **kwargs):
         """ Hook for changing the data before it gets validated on a POST
         request. Useful if additional keys need to be added to the data
         which the user shouldn't not have access to."""
@@ -340,7 +340,7 @@ class BaseAPI(MethodView):
         data = self._get_instance(args)[self.collection[:-1]]
         current_app.logger.debug("Obj pre change: %s" % data)
         change = {} if request.data.strip() == "" else request.json.copy()
-        change = self._pre_validate(change)
+        change = self._pre_validate(change, obj=data)
         data.update(change)
         self.obj = self.model(data)
         try:
