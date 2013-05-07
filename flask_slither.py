@@ -92,7 +92,8 @@ class BaseAPI(MethodView):
 
     ######################################
     ## Preparing response into proper mime
-    def _prep_response(self, dct, last_modified=None, etag=None, status=200):
+    def _prep_response(self, dct, last_modified=None, etag=None, status=200,
+                       **kwargs):
         # TODO: handle more mime types
         mime = "application/json"
     #    rendered = globals()[render](**dct)
@@ -104,6 +105,8 @@ class BaseAPI(MethodView):
         current_app.logger.warning("Change the origin policy")
         resp.headers.add('Access-Control-Allow-Origin',
                          request.headers.get('origin', '*'))
+        for h in kwargs.get('headers', []):
+            resp.headers.add(h[0], h[1])
         resp.expires = time.time() + 30
         if etag:
             resp.headers.add('ETag', etag)
@@ -312,8 +315,11 @@ class BaseAPI(MethodView):
             links = []
             links.append(self._link('self', obj_id=obj_id))
             links.append(self._link('collection'))
+            #TODO: figure out prefix
+            location = '1.0/%s/%s' % (self.collection, obj_id)
 #            return self._prep_response({'links': links}, status=201)
-            return self._prep_response(data, status=201)
+            return self._prep_response(data, status=201,
+                                       headers=[('Location', location)])
         except Exception, e:
             return Response(e.message, 400)
 
