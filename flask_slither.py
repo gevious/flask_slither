@@ -229,7 +229,6 @@ class BaseAPI(MethodView):
 
     def _get_instance(self, args):
         current_app.logger.debug("GETting instance")
-        print args
         if '_id' in args and isinstance(args['_id'], unicode):
             # transform id to objectid so mongo can find it
             args['_id'] = ObjectId(args['_id'])
@@ -244,7 +243,7 @@ class BaseAPI(MethodView):
         if doc is None:
             abort(404)
 #        doc['link'] = self._link(doc)
-        return {self.collection[:-1]: self.limit_fields(doc, is_instance=True)}
+        return {self.collection: self.limit_fields(doc, is_instance=True)}
 
     def get_links(self, response, args, **kwargs):
         """ Adding generic links to the end of the queryset to satisfy the
@@ -336,7 +335,7 @@ class BaseAPI(MethodView):
             abort(403)
         args = self._auth_limits(**kwargs)
 
-        obj = self._get_instance(args)[self.collection[:-1]]
+        obj = self._get_instance(args)[self.collection]
         current_app.db[self.collection].remove(obj['_id'])
         return Response("", 204)
 
@@ -348,7 +347,7 @@ class BaseAPI(MethodView):
             abort(403)
         args = self._auth_limits(**kwargs)
 
-        data = self._get_instance(args)[self.collection[:-1]]
+        data = self._get_instance(args)[self.collection]
         current_app.logger.debug("Obj pre change: %s" % data)
         change = {} if request.data.strip() == "" else request.json.copy()
         change = self._pre_validate(change, obj=data)
