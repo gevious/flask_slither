@@ -229,7 +229,12 @@ class BaseAPI(MethodView):
 
     def _get_instance(self, args):
         current_app.logger.debug("GETting instance")
+        print args
+        if '_id' in args and isinstance(args['_id'], unicode):
+            # transform id to objectid so mongo can find it
+            args['_id'] = ObjectId(args['_id'])
         cursor = current_app.db[self.collection].find(args)
+
         count = cursor.count()
         if count == 0:
             abort(404)
