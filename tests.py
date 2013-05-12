@@ -3,6 +3,7 @@ from flask import Flask
 from flask.ext.testing import TestCase
 from flask_slither import register_api, BaseAPI
 from pymongo import MongoClient
+from unittest import skip
 
 """ Vanilla extention of BaseAPI so we can test all BaseAPI functionality
 as-is"""
@@ -43,6 +44,11 @@ class BaseApiTestCase(TestCase):
             self.assertEquals(response.json[collection_name][i]['name'],
                               "Record %s" % i)
 
+    @skip("Get list with limited fields")
+    def test_get_list_limit_fields(self):
+        #Limit fields returned by instance
+        pass
+
     def test_get_instance_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         response = self.client.get('/test/%s' % str(obj_id))
@@ -51,6 +57,10 @@ class BaseApiTestCase(TestCase):
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0"}}
         self.assertEquals(response.json, expected_data)
 
+    @skip("Get instance - 404")
+    def test_get_instance_by_id_missing(self):
+        pass
+
     def test_get_instance_by_lookup(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         response = self.client.get('/test/Record 0')
@@ -58,6 +68,43 @@ class BaseApiTestCase(TestCase):
         expected_data = {collection_name: {
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0"}}
         self.assertEquals(response.json, expected_data)
+
+    @skip("Get instance lookup - 404")
+    def test_get_instance_by_lookup_missing(self):
+        pass
+
+    @skip("Get instance lookup - 409")
+    def test_get_instance_by_lookup_multiple(self):
+        pass
+
+    @skip("Get instance with limited fields")
+    def test_get_instance_limit_fields(self):
+        #Limit fields returned by instance
+        pass
+
+    @skip("Post request")
+    def test_post(self):
+        pass
+
+    @skip("Post request with validation errors")
+    def test_post_validation(self):
+        pass
+
+    @skip("Patch request")
+    def test_patch(self):
+        pass
+
+    @skip("Patch request with validation errors")
+    def test_patch_validation(self):
+        pass
+
+    @skip("Delete request")
+    def test_delete(self):
+        pass
+
+    @skip("Delete request 404")
+    def test_delete_missing(self):
+        pass
 
     def _fixture_setup(self):
         for i in range(10):
