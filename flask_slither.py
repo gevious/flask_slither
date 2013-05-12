@@ -13,18 +13,63 @@ from __future__ import with_statement
 
 __version__ = '0.1'
 
-from api.decorators import authenticate
+#from api.decorators import authenticate
 from bson.objectid import ObjectId
 from bson import json_util
 from datetime import datetime
 from flask import current_app, abort, request, make_response, g, Response
 from flask.views import MethodView
-from mongokit.schema_document import SchemaDocument, RequireFieldError
+from mongokit.schema_document import RequireFieldError
+from mongokit.document import Document
 from urllib import urlencode
+from werkzeug.routing import BaseConverter
 
 import pymongo
 import re
 import time
+
+
+class ApiException(Exception):
+    pass
+
+
+class NoAuthorization():
+    """ The default authorization always returns true. All requests are
+    authorized"""
+    def is_authorized(self, **kwargs):
+        current_app.logger.warning(
+            "Authorization:API is open - no auth checks in place")
+        return True
+
+    def access_limits(self, **kwargs):
+        current_app.logger.warning(
+            "Access Limits: No query access restrictions")
+        return None
+
+
+class ReadOnlyAuthorization():
+    """ Only GET requests are allowed, the rests are disallowed"""
+    def is_authorized(self, **kwargs):
+        current_app.logger.info("Authorization: API is read-only")
+        return request.method == "GET"
+
+    def access_limits(self, **kwargs):
+        current_app.logger.warning(
+            "Access Limits: No query access restrictions")
+        return None
+
+
+class NoAuthentication():
+    """ The default authentication allows all requests through """
+    def is_authenticated(self, **kwargs):
+        current_app.logger.info("Authentication: No Auth checks in place")
+        return True
+
+
+class RegexConverter(BaseConverter):
+    def __init__(self, url_map, *items):
+        super(RegexConverter, self).__init__(url_map)
+        self.regex = items[0]
 
 
 def register_api(mod, view, **kwargs):
@@ -32,6 +77,9 @@ def register_api(mod, view, **kwargs):
     endpoint = kwargs.get('endpoint', "%s_api" % name)
     url = "/%s" % kwargs.get('url', "%ss" % name)
     view_func = view.as_view(endpoint)
+
+    mod.url_map.converters['regex'] = RegexConverter
+
     mod.add_url_rule("%s" % url, view_func=view_func,
                      methods=['GET', 'POST', 'OPTIONS'])
     mod.add_url_rule('%s/<regex("[a-f0-9]{24}"):obj_id>' % url,
@@ -47,7 +95,23 @@ class BaseAPI(MethodView):
     require_site_filter = True  # usually all queries must contain site filter
     lookup_field = 'name'
     DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-    decorators = [authenticate]
+    """ The authentication class has one method called `is_authenticated` and
+    returns True or False depending on whether the request is authenticated or
+    not. If not, a 401 is returned, otherwise the process continues"""
+    authentication = NoAuthentication()
+
+    """ The authorization class has two methods. The first, `is_authorized`
+    determines if the user issuing the request is authorized to make this
+    request. If not a 403 is returned. If the request is authorised, the
+    `access_limits` function is called, which should return a query that limits
+    the records the request has access to. This query will be used in
+    conjuction with any other queries generated or used by the request"""
+    authorization = NoAuthorization()
+
+    """ The collection name this api is responsible for. This *must* be
+    defined in a child class otherwise mongo won't know which collection to
+    use for its transactions."""
+    collection = None
 
     def __init__(self, app=None):
         if app is not None:
@@ -55,7 +119,6 @@ class BaseAPI(MethodView):
             self.init_app(self.app)
         else:
             self.app = None
-        self.collection = None
 
     def init_app(self, app):
         app.config.setdefault('SQLITE3_DATABASE', ':memory:')
@@ -92,12 +155,12 @@ class BaseAPI(MethodView):
 
     ######################################
     ## Preparing response into proper mime
-    def _prep_response(self, dct, last_modified=None, etag=None, status=200,
-                       **kwargs):
+    def _prep_response(self, dct=None, last_modified=None, etag=None,
+                       status=200, **kwargs):
         # TODO: handle more mime types
         mime = "application/json"
+        rendered = "" if dct is None else json_util.dumps(dct)
     #    rendered = globals()[render](**dct)
-        rendered = json_util.dumps(dct)
         resp = make_response(rendered, status)
         resp.headers.add('Cache-Control',
                          'max-age=%s,must-revalidate' % 30)
@@ -205,12 +268,12 @@ class BaseAPI(MethodView):
         which the user shouldn't not have access to."""
         return data
 
-    def _get_collection(self, args):
+    def _get_collection(self):
         current_app.logger.debug("GETting collection")
         documents = []
         try:
+            args = {} if g.access_limits is None else g.access_limits
             cursor = current_app.db[self.collection].find(**args)
-            total = cursor.count()
             if 'sort' in request.args:
                 sort = []
                 for k, v in json_util.loads(request.args['sort']).iteritems():
@@ -218,32 +281,31 @@ class BaseAPI(MethodView):
                         (k, pymongo.ASCENDING if v else pymongo.DESCENDING))
                 cursor = cursor.sort(sort)
             for document in cursor:
-                document['link'] = self._link(document)
-                del document['_id']
+                document['id'] = str(document.pop('_id'))
                 documents.append(document)
         except ValueError:
             abort(400)
 
-#        return {self.collection: documents, 'total': total}
         return {self.collection: documents}
 
-    def _get_instance(self, args):
+    def _get_instance(self, **kwargs):
         current_app.logger.debug("GETting instance")
-        if '_id' in args and isinstance(args['_id'], unicode):
-            # transform id to objectid so mongo can find it
-            args['_id'] = ObjectId(args['_id'])
-        cursor = current_app.db[self.collection].find(args)
 
-        count = cursor.count()
-        if count == 0:
-            abort(404)
-        elif count > 1:
-            return "Multiple %s found" % self.collection, 500
-        doc = cursor[0]
-        if doc is None:
-            abort(404)
-#        doc['link'] = self._link(doc)
-        return {self.collection: self.limit_fields(doc, is_instance=True)}
+        if 'obj_id' in kwargs:
+            query = {'_id': ObjectId(kwargs['obj_id'])}
+        else:
+            record = current_app.db[self.collection].find(
+                {self.lookup_field: kwargs['lookup']})
+            if record.count() < 1:
+                raise ApiException("No record found for this lookup")
+            elif record.count() > 1:
+                raise ApiException("Multiple records found for this lookup")
+            else:
+                query = {self.lookup_field: kwargs['lookup']}
+
+        #TODO: add field limits into query so we can use indexes if available
+        doc = current_app.db[self.collection].find_one(query)
+        return {self.collection: doc}
 
     def get_links(self, response, args, **kwargs):
         """ Adding generic links to the end of the queryset to satisfy the
@@ -284,19 +346,33 @@ class BaseAPI(MethodView):
         return links
 
     def get(self, **kwargs):
+        """ GET request entry point. We split the request into 2 paths:
+            Getting a specific instance, either by id or lookup field
+            Getting a list of records"""
         current_app.logger.debug("GET request received")
         current_app.logger.debug("kwargs: %s" % kwargs)
         if 'lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
-        if not self.authorized(**kwargs):
+        if not self.authentication.is_authenticated(**kwargs):
+            current_app.logger.warning("Unauthenticated request")
+            return self._prep_response(status_code=401)
+        if not self.authorization.is_authorized(**kwargs):
             current_app.logger.warning("Unauthorized request")
-            abort(403)
-        args = self._auth_limits(**kwargs)
+            return self._prep_response(status_code=403)
+        g.access_limits = self.authorization.access_limits()
+        if self.collection is None:
+            return self._prep_response("No collection defined",
+                                       status_code=424)
         if 'is_instance' in kwargs:
-            response = self._get_instance(args)
+            try:
+                response = self._get_instance(**kwargs)
+            except ApiException, e:
+                if e.message.find('No record'):
+                    return self._prep_response(status_code=404)
+                else:
+                    return self._prep_response(status_code=409)
         else:
-            response = self._get_collection(args)
-#        response['links'] = self.get_links(response, args, **kwargs)
+            response = self._get_collection()
 
         return self._prep_response(response)
 
@@ -304,7 +380,12 @@ class BaseAPI(MethodView):
         current_app.logger.debug("POST request received")
         if not self.authorized():
             abort(403)
-        data = {} if request.data.strip() == "" else request.json.copy()
+        data = {} if request.data.strip() == "" else \
+            request.json.copy()
+        if self.collection not in data:
+            self._prep_response("Missing collection name: %s" %
+                                self.collection, status_code=400)
+        data = data[self.collection]
 
         if self.require_site_filter or not g.user['is_superuser']:
             data['site'] = g.user['site']
@@ -322,9 +403,10 @@ class BaseAPI(MethodView):
             #TODO: figure out prefix
             location = '1.0/%s/%s' % (self.collection, obj_id)
 #            return self._prep_response({'links': links}, status=201)
-            return self._prep_response(data, status=201,
+            return self._prep_response("", status=201,
                                        headers=[('Location', location)])
         except Exception, e:
+            current_app.logger.warning("Validation Failed: %s" % e.message)
             return Response(e.message, 400)
 
     def delete(self, **kwargs):
@@ -336,8 +418,8 @@ class BaseAPI(MethodView):
         args = self._auth_limits(**kwargs)
 
         obj = self._get_instance(args)[self.collection]
-        current_app.db[self.collection].remove(obj['_id'])
-        return Response("", 204)
+        current_app.db[self.collection].remove(ObjectId(obj['id']))
+        return self._prep_response(status=204)
 
     def patch(self, **kwargs):
         current_app.logger.debug("PATCH request received")
@@ -349,25 +431,32 @@ class BaseAPI(MethodView):
 
         data = self._get_instance(args)[self.collection]
         current_app.logger.debug("Obj pre change: %s" % data)
-        change = {} if request.data.strip() == "" else request.json.copy()
+        change = {} if request.data.strip() == "" else \
+            request.json.copy()[self.collection]
         change = self._pre_validate(change, obj=data)
         data.update(change)
+        data['_id'] = ObjectId(data.pop('id'))
         self.obj = self.model(data)
         try:
             self.obj.validate()
             if len(self.obj.validation_errors) > 0:
-                return self._validation_response(self.obj)
+                return self._prep_response(self._validation_response(self.obj),
+                                           status=400)
             current_app.db[self.collection].update(
                 {"_id": data['_id']}, {"$set": change})
-            return Response("", 204)
+            data = current_app.db[self.collection].find_one(
+                {'_id': self.obj['_id']})
+            data['id'] = str(data.pop('_id'))
+            return self._prep_response(data, status=204)
         except Exception, e:
+            current_app.logger.warning("Validation Failed: %s" % e.message)
             return Response(e.message, 400)
 
     def options(self, **kwargs):
         return NotImplementedError()
 
 
-class ValidationDocument(SchemaDocument):
+class ValidationDocument(Document):
     raise_validation_errors = False
     skip_validation = False
     use_dot_notation = True
@@ -382,3 +471,11 @@ class ValidationDocument(SchemaDocument):
             if k in self and self.get(k).strip() == "":
                 self._raise_exception(
                     RequireFieldError, k, "%s cannot be empty" % k)
+
+    def __getattribute__(self, key):
+        # overrite this since we don't use the db or connection for validation
+        return super(Document, self).__getattribute__(key)
+
+    def _get_size_limit(self):
+        # no connection to the db, so we assume the latest size (mongo 1.8)
+        return (15999999, '16MB')
