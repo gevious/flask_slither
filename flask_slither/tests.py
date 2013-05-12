@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from flask import Flask
 from flask.ext.testing import TestCase
-from flask_slither import register_api, BaseAPI
+from flask.ext.slither.endpoints import BaseEndpoints
+from flask.ext.slither import register_api
 from pymongo import MongoClient
 from unittest import skip
 
@@ -11,11 +12,11 @@ as-is"""
 collection_name = 'tests'
 
 
-class TestApi(BaseAPI):
+class TestEndpoints(BaseEndpoints):
     collection = collection_name
 
 
-class BaseApiTestCase(TestCase):
+class BaseEndpointsTestCase(TestCase):
     def create_app(self):
         app = Flask(__name__)
 
@@ -26,7 +27,7 @@ class BaseApiTestCase(TestCase):
         app.db = app.client[app.config['DB_NAME']]
 
         # register route endpoints of BaseApi for testing
-        register_api(app, TestApi, url="test")
+        register_api(app, TestEndpoints, url="test")
         return app
 
     def setUp(self):
@@ -57,9 +58,14 @@ class BaseApiTestCase(TestCase):
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0"}}
         self.assertEquals(response.json, expected_data)
 
-    @skip("Get instance - 404")
     def test_get_instance_by_id_missing(self):
-        pass
+        obj_id = str(self.app.db[collection_name].find_one()['_id'])
+        if obj_id[0] == 'a':
+            obj_id = "b%s" % obj_id[1:]
+        else:
+            obj_id = "a%s" % obj_id[1:]
+        response = self.client.get('/test/%s' % obj_id)
+        self.assertEquals(response.status_code, 404)
 
     def test_get_instance_by_lookup(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
@@ -69,9 +75,9 @@ class BaseApiTestCase(TestCase):
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0"}}
         self.assertEquals(response.json, expected_data)
 
-    @skip("Get instance lookup - 404")
     def test_get_instance_by_lookup_missing(self):
-        pass
+        response = self.client.get('/test/Record 11')
+        self.assertEquals(response.status_code, 404)
 
     @skip("Get instance lookup - 409")
     def test_get_instance_by_lookup_multiple(self):

@@ -19,78 +19,19 @@ from bson import json_util
 from datetime import datetime
 from flask import current_app, abort, request, make_response, g, Response
 from flask.views import MethodView
+from flask.ext.slither.authentication import NoAuthentication
+from flask.ext.slither.authorization import NoAuthorization
+from flask.ext.slither.exceptions import ApiException
 from mongokit.schema_document import RequireFieldError
 from mongokit.document import Document
 from urllib import urlencode
-from werkzeug.routing import BaseConverter
 
 import pymongo
 import re
 import time
 
 
-class ApiException(Exception):
-    pass
-
-
-class NoAuthorization():
-    """ The default authorization always returns true. All requests are
-    authorized"""
-    def is_authorized(self, **kwargs):
-        current_app.logger.warning(
-            "Authorization:API is open - no auth checks in place")
-        return True
-
-    def access_limits(self, **kwargs):
-        current_app.logger.warning(
-            "Access Limits: No query access restrictions")
-        return None
-
-
-class ReadOnlyAuthorization():
-    """ Only GET requests are allowed, the rests are disallowed"""
-    def is_authorized(self, **kwargs):
-        current_app.logger.info("Authorization: API is read-only")
-        return request.method == "GET"
-
-    def access_limits(self, **kwargs):
-        current_app.logger.warning(
-            "Access Limits: No query access restrictions")
-        return None
-
-
-class NoAuthentication():
-    """ The default authentication allows all requests through """
-    def is_authenticated(self, **kwargs):
-        current_app.logger.info("Authentication: No Auth checks in place")
-        return True
-
-
-class RegexConverter(BaseConverter):
-    def __init__(self, url_map, *items):
-        super(RegexConverter, self).__init__(url_map)
-        self.regex = items[0]
-
-
-def register_api(mod, view, **kwargs):
-    name = view.__name__[:-3].lower()
-    endpoint = kwargs.get('endpoint', "%s_api" % name)
-    url = "/%s" % kwargs.get('url', "%ss" % name)
-    view_func = view.as_view(endpoint)
-
-    mod.url_map.converters['regex'] = RegexConverter
-
-    mod.add_url_rule("%s" % url, view_func=view_func,
-                     methods=['GET', 'POST', 'OPTIONS'])
-    mod.add_url_rule('%s/<regex("[a-f0-9]{24}"):obj_id>' % url,
-                     view_func=view_func,
-                     methods=['GET', 'PATCH', 'DELETE', 'OPTIONS'])
-    mod.add_url_rule('%s/<lookup>' % url,
-                     view_func=view_func,
-                     methods=['GET', 'PATCH', 'DELETE', 'OPTIONS'])
-
-
-class BaseAPI(MethodView):
+class BaseEndpoints(MethodView):
     model = None
     require_site_filter = True  # usually all queries must contain site filter
     lookup_field = 'name'
@@ -121,7 +62,6 @@ class BaseAPI(MethodView):
             self.app = None
 
     def init_app(self, app):
-        app.config.setdefault('SQLITE3_DATABASE', ':memory:')
         # Use the newstyle teardown_appcontext if it's available,
         # otherwise fall back to the request context
         if hasattr(app, 'teardown_appcontext'):
@@ -290,18 +230,17 @@ class BaseAPI(MethodView):
 
     def _get_instance(self, **kwargs):
         current_app.logger.debug("GETting instance")
+        print kwargs
 
         if 'obj_id' in kwargs:
             query = {'_id': ObjectId(kwargs['obj_id'])}
         else:
-            record = current_app.db[self.collection].find(
-                {self.lookup_field: kwargs['lookup']})
-            if record.count() < 1:
-                raise ApiException("No record found for this lookup")
-            elif record.count() > 1:
-                raise ApiException("Multiple records found for this lookup")
-            else:
-                query = {self.lookup_field: kwargs['lookup']}
+            query = {self.lookup_field: kwargs['lookup']}
+        record = current_app.db[self.collection].find(query)
+        if record.count() < 1:
+            raise ApiException("No record found for this lookup")
+        elif record.count() > 1:
+            raise ApiException("Multiple records found for this lookup")
 
         #TODO: add field limits into query so we can use indexes if available
         doc = current_app.db[self.collection].find_one(query)
@@ -355,22 +294,22 @@ class BaseAPI(MethodView):
             kwargs['is_instance'] = True
         if not self.authentication.is_authenticated(**kwargs):
             current_app.logger.warning("Unauthenticated request")
-            return self._prep_response(status_code=401)
+            return self._prep_response(status=401)
         if not self.authorization.is_authorized(**kwargs):
             current_app.logger.warning("Unauthorized request")
-            return self._prep_response(status_code=403)
+            return self._prep_response(status=403)
         g.access_limits = self.authorization.access_limits()
         if self.collection is None:
             return self._prep_response("No collection defined",
-                                       status_code=424)
+                                       status=424)
         if 'is_instance' in kwargs:
             try:
                 response = self._get_instance(**kwargs)
             except ApiException, e:
-                if e.message.find('No record'):
-                    return self._prep_response(status_code=404)
+                if e.message.find('No record') == 0:
+                    return self._prep_response(status=404)
                 else:
-                    return self._prep_response(status_code=409)
+                    return self._prep_response(status=409)
         else:
             response = self._get_collection()
 
@@ -378,17 +317,23 @@ class BaseAPI(MethodView):
 
     def post(self):
         current_app.logger.debug("POST request received")
-        if not self.authorized():
-            abort(403)
+        if not self.authentication.is_authenticated():
+            current_app.logger.warning("Unauthenticated request")
+            return self._prep_response(status=401)
+        if not self.authorization.is_authorized():
+            current_app.logger.warning("Unauthorized request")
+            return self._prep_response(status=403)
+        g.access_limits = self.authorization.access_limits()
+        if self.collection is None:
+            return self._prep_response("No collection defined",
+                                       status=424)
+
         data = {} if request.data.strip() == "" else \
             request.json.copy()
-        if self.collection not in data:
-            self._prep_response("Missing collection name: %s" %
-                                self.collection, status_code=400)
         data = data[self.collection]
 
-        if self.require_site_filter or not g.user['is_superuser']:
-            data['site'] = g.user['site']
+#        if self.require_site_filter or not g.user['is_superuser']:
+#            data['site'] = g.user['site']
         data = self._pre_validate(data)
 
         obj = self.model(data)
@@ -398,16 +343,16 @@ class BaseAPI(MethodView):
                 return self._validation_response(obj)
             obj_id = current_app.db[self.collection].insert(data)
             links = []
-            links.append(self._link('self', obj_id=obj_id))
+#            links.append(self._link('self', obj_id=obj_id))
             links.append(self._link('collection'))
             #TODO: figure out prefix
             location = '1.0/%s/%s' % (self.collection, obj_id)
 #            return self._prep_response({'links': links}, status=201)
             return self._prep_response("", status=201,
                                        headers=[('Location', location)])
-        except Exception, e:
+        except ApiException, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
-            return Response(e.message, 400)
+            return self._prep_response(e.message, status=400)
 
     def delete(self, **kwargs):
         current_app.logger.debug("DELETE request received")
