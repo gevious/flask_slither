@@ -2,7 +2,8 @@ flask_slither
 =============
 
 A small library to interface between a mongodb and JSON RESTful API endpoints.
-It uses Flask's `MethodView` and populates it with boilerplate code.
+It uses Flask's `MethodView` and populates it with boilerplate code. It is based
+on django tastypie.
 
 The idea behind Slither
 =======================
