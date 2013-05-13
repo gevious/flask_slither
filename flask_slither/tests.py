@@ -10,6 +10,7 @@ from flask.ext.slither.signals import request_authenticated
 from flask.ext.slither import register_api
 from pymongo import MongoClient
 from hashlib import sha1
+from werkzeug.routing import BaseConverter
 
 import binascii
 import json
@@ -20,6 +21,15 @@ import pytz
 as-is"""
 
 collection_name = 'tests'
+
+
+# Unfortunately we need to add the regex urlmapper here because I
+# still need to figure out how to add it to the blueprint outside the
+# app context
+class RegexConverter(BaseConverter):
+    def __init__(self, url_map, *items):
+        super(RegexConverter, self).__init__(url_map)
+        self.regex = items[0]
 
 
 @contextmanager
@@ -52,6 +62,7 @@ class RequestSigningAuthenticationEndpoints(BaseEndpoints):
 class BasicTestCase(TestCase):
     def create_app(self):
         app = Flask(__name__)
+        app.url_map.converters['regex'] = RegexConverter
 
         app.config['DB_HOST'] = 'localhost'
         app.config['DB_PORT'] = 27017
@@ -108,6 +119,13 @@ class SimpleTestCase(BasicTestCase):
                               "Record %s" % i)
             self.assertEquals(response.json[collection_name][i]['extra'],
                               "Extra %s" % i)
+
+    def test_get_list_search(self):
+        response = self.client.get('/test?where={"name": "Record 3"}')
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.json.keys(), [collection_name])
+        self.assertEquals(len(response.json[collection_name]), 1)
+        self.assertEquals(response.json['tests'][0]['extra'], "Extra 3")
 
     def test_get_list_limit_fields(self):
         response = self.client.get('/test?_fields=name&_fields=wrong')
@@ -220,6 +238,7 @@ class SimpleTestCase(BasicTestCase):
 class ReadOnlyAuthorizationTestCase(BasicTestCase):
     def create_app(self):
         app = Flask(__name__)
+        app.url_map.converters['regex'] = RegexConverter
 
         app.config['DB_HOST'] = 'localhost'
         app.config['DB_PORT'] = 27017
@@ -290,6 +309,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
 class RequestSigningAuthenticationTestCase(BasicTestCase):
     def create_app(self):
         app = Flask(__name__)
+        app.url_map.converters['regex'] = RegexConverter
 
         app.config['DB_HOST'] = 'localhost'
         app.config['DB_PORT'] = 27017

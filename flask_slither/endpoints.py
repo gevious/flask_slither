@@ -23,8 +23,6 @@ from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
-from mongokit.schema_document import RequireFieldError
-from mongokit.document import Document
 from urllib import urlencode
 from functools import wraps
 
@@ -133,6 +131,7 @@ class BaseEndpoints(MethodView):
                        status=200, **kwargs):
         # TODO: handle more mime types
         mime = "application/json"
+        print dct
         rendered = "" if dct is None else json_util.dumps(dct)
     #    rendered = globals()[render](**dct)
         resp = make_response(rendered, status)
@@ -153,88 +152,8 @@ class BaseEndpoints(MethodView):
         resp.mimetype = mime
         return resp
 
-    def _validation_response(self, obj):
-        response = {}
-        for k, v in obj.validation_errors.iteritems():
-            key = "structure" if k is None else k
-            response[key] = []
-            for error in v:
-                response[key].append(error.message)
-        return Response(json_util.dumps(response), 400)
-
-    def authorized(self, **kwargs):
-        if g.user.get('is_superuser', False) or \
-                g.user.get('is_site_manager', False):
-            return True
-        has_perms = False
-        perm = {'GET': "view", 'POST': "add", 'PATCH': "change",
-                'DELETE': "delete"}
-
-        for group in g.user.get('groups', []):
-            if "%s_%s" % (perm[request.method], self.collection[:-1]) in \
-                    group.get('permissions', []):
-                has_perms = True
-                break
-        return has_perms
-
     def limit_fields(self, data, **kwargs):
         """ Limit the fields returned in the response"""
-        return data
-
-    def _auth_limits(self, **kwargs):
-        """ Generates mandatory arguments which limit the objects by
-        user permissions """
-
-        args = {} if kwargs.get('is_instance', False) else {'spec': {}}
-        if request.method == "GET":
-            if 'lookup' in kwargs:
-                args.update({self.lookup_field: kwargs.get('lookup')})
-            elif 'obj_id' in kwargs:
-                args.update({'_id': ObjectId(kwargs.get('obj_id'))})
-            else:
-                args['limit'] = int(request.args.get('limit', 25))
-                args['skip'] = int(request.args.get('skip', 0))
-                if 'where' in request.args:
-                    args['spec'].update(json_util.loads(
-                        request.args.get('where')))
-
-        site_filter = {'site': g.site['_id']} if self.require_site_filter \
-            or not g.user['is_superuser'] else {}
-        if kwargs.get('is_instance', False):
-            args.update(site_filter)
-            if 'lookup' in kwargs:
-                args[self.lookup_field] = kwargs.get('lookup')
-            else:
-                args['_id'] = kwargs.get('obj_id', "")
-        else:
-            args['spec'].update(site_filter) if 'spec' in args else \
-                args.update(site_filter)
-
-        # Adding custom auth limits to the arguments
-        custom_limits = self.custom_auth_limits(**kwargs)
-        current_app.logger.debug("Custom limits: %s" % custom_limits)
-        if custom_limits is None:
-            abort(404)
-
-        # ensure we can never pass the site variable in throug the url
-        if 'site' in custom_limits:
-            del custom_limits['site']
-
-        args.update(custom_limits) if kwargs.get('is_instance', False) else \
-            args['spec'].update(custom_limits)
-        current_app.logger.debug("Query Args: %s" % args)
-        return args
-
-    def _pre_validate(self, data, **kwargs):
-        """ System pre-validate to prevent overwriting id"""
-        if '_id' in data:
-            del data['_id']
-        return self.pre_validate(data, **kwargs)
-
-    def pre_validate(self, data, **kwargs):
-        """ Hook for changing the data before it gets validated on a POST
-        request. Useful if additional keys need to be added to the data
-        which the user shouldn't not have access to."""
         return data
 
     def _get_projection(self):
@@ -249,7 +168,10 @@ class BaseEndpoints(MethodView):
         current_app.logger.debug("GETting collection")
         documents = []
         try:
-            query = {} if g.access_limits is None else g.access_limits
+            query = {} if 'where' not in request.args else \
+                json_util.loads(request.args.get('where'))
+            if g.access_limits is not None:
+                query.update(g.access_limits)
             cursor = current_app.db[self.collection] \
                 .find(query, self._get_projection())
             if 'sort' in request.args:
@@ -273,6 +195,10 @@ class BaseEndpoints(MethodView):
             query = {'_id': ObjectId(kwargs['obj_id'])}
         else:
             query = {self.lookup_field: kwargs['lookup']}
+
+        if g.access_limits is not None:
+            query.update(g.access_limits)
+
         count = current_app.db[self.collection].find(query).count()
         if count < 1:
             raise ApiException("No record found for this lookup")
@@ -392,15 +318,9 @@ class BaseEndpoints(MethodView):
                                        status=400)
         data = data[self.collection]
 
-#        if self.require_site_filter or not g.user['is_superuser']:
-#            data['site'] = g.user['site']
-#        data = self._pre_validate(data)
-
-#        obj = self.model(data)
         try:
             data = self.validation.pre_validation_transform(data)
-            self.validation.validate(data)
-#            obj.validate()
+            self.validation.validate(data, model=self.model)
             if len(self.validation.errors) > 0:
                 return self._prep_response(self.validation.errors, status=400)
             obj_id = current_app.db[self.collection].insert(data)
@@ -452,28 +372,3 @@ class BaseEndpoints(MethodView):
         """This method has been left open for fine grain control in the
         application (for security reasons)."""
         return NotImplementedError()
-
-
-class ValidationDocument(Document):
-    raise_validation_errors = False
-    skip_validation = False
-    use_dot_notation = True
-    use_schemaless = True
-
-    def validate(self):
-        super(ValidationDocument, self).validate()
-        # ensure required fields are set with some value
-        for k in self.required_fields:
-            if type(self.get(k)) not in [unicode, str]:
-                continue
-            if k in self and self.get(k).strip() == "":
-                self._raise_exception(
-                    RequireFieldError, k, "%s cannot be empty" % k)
-
-    def __getattribute__(self, key):
-        # overrite this since we don't use the db or connection for validation
-        return super(Document, self).__getattribute__(key)
-
-    def _get_size_limit(self):
-        # no connection to the db, so we assume the latest size (mongo 1.8)
-        return (15999999, '16MB')

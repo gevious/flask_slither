@@ -1,22 +1,12 @@
 __author__ = 'Nico Gevers'
 __version__ = (0, 0, 1, 'dev')
 
-from werkzeug.routing import BaseConverter
-
-
-class RegexConverter(BaseConverter):
-    def __init__(self, url_map, *items):
-        super(RegexConverter, self).__init__(url_map)
-        self.regex = items[0]
-
 
 def register_api(mod, view, **kwargs):
-    name = view.__name__.lower()
+    name = view.__name__.lower()[:-3]  # remove _api from the end
     endpoint = kwargs.get('endpoint', "%s_api" % name)
     url = "/%s" % kwargs.get('url', "%ss" % name)
     view_func = view.as_view(endpoint)
-
-    mod.url_map.converters['regex'] = RegexConverter
 
     mod.add_url_rule("%s" % url, view_func=view_func,
                      methods=['GET', 'POST', 'OPTIONS'])
