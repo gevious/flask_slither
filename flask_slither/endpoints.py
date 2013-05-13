@@ -49,9 +49,6 @@ def preflight_checks(f):
             msg = g.authorization_error \
                 if hasattr(g, 'authorization_error') else None
             return self._prep_response(msg, status=403)
-        g.access_limits = self.authorization.access_limits(
-            model=self.model, collection=self.collection,
-            lookup_field=self.lookup_field, **kwargs)
         if self.collection is None:
             return self._prep_response("No collection defined",
                                        status=424)
@@ -70,12 +67,9 @@ class BaseEndpoints(MethodView):
     not. If not, a 401 is returned, otherwise the process continues"""
     authentication = NoAuthentication()
 
-    """ The authorization class has two methods. The first, `is_authorized`
+    """ The authorization class has one method called `is_authorized`. It
     determines if the user issuing the request is authorized to make this
-    request. If not a 403 is returned. If the request is authorised, the
-    `access_limits` function is called, which should return a query that limits
-    the records the request has access to. This query will be used in
-    conjuction with any other queries generated or used by the request"""
+    request. If not a 403 is returned. """
     authorization = NoAuthorization()
 
     """ The collection name this api is responsible for. This *must* be
@@ -83,9 +77,7 @@ class BaseEndpoints(MethodView):
     use for its transactions."""
     collection = None
 
-    """ The validation class can transform a payload just before validation
-    using the `pre_validation_transform` method which returns the new data
-    dict. After that the `validation` method gets called and stores the
+    """ The `validation` method gets called and stores the
     errors in a dict called `errors`."""
     validation = NoValidation()
 
@@ -154,17 +146,30 @@ class BaseEndpoints(MethodView):
         resp.mimetype = mime
         return resp
 
-    def limit_fields(self, data, **kwargs):
+    def limit_fields(self, **kwargs):
         """ Limit the fields returned in the response"""
+        return {}
+
+    def access_limits(self, **kwargs):
+        """ Returns a query which filters the current collection based on
+        authentication access"""
+        return {}
+
+    def pre_validation_transform(self, data):
+        """ Transform the data by adding or removing fields before the
+        data is validated. Useful for adding server generated fields, such
+        as an author for a post"""
         return data
 
     def _get_projection(self):
-        projection = None
+        projection = {}
         if '_fields' in request.args:
             projection = {}
             for k in request.args.getlist('_fields'):
                 projection[k] = 1
-        return projection
+        final = self.limit_fields()
+        final.update(projection)
+        return None if final == {} else final
 
     def _get_collection(self):
         current_app.logger.debug("GETting collection")
@@ -172,8 +177,7 @@ class BaseEndpoints(MethodView):
         try:
             query = {} if 'where' not in request.args else \
                 json_util.loads(request.args.get('where'))
-            if g.access_limits is not None:
-                query.update(g.access_limits)
+            query.update(self.access_limits())
             cursor = current_app.db[self.collection] \
                 .find(query, self._get_projection())
             if 'sort' in request.args:
@@ -198,8 +202,7 @@ class BaseEndpoints(MethodView):
         else:
             query = {self.lookup_field: kwargs['lookup']}
 
-        if g.access_limits is not None:
-            query.update(g.access_limits)
+        query.update(self.access_limits(**kwargs))
 
         count = current_app.db[self.collection].find(query).count()
         if count < 1:
@@ -293,7 +296,7 @@ class BaseEndpoints(MethodView):
             change = {} if request.data.strip() == "" else \
                 request.json.copy()[self.collection]
 
-            change = self.validation.pre_validation_transform(change)
+            change = self.pre_validation_transform(change)
             final = data.copy()
             final.update(change)
             self.validation.validate(final, model=self.model,
@@ -322,7 +325,7 @@ class BaseEndpoints(MethodView):
         data = data[self.collection]
 
         try:
-            data = self.validation.pre_validation_transform(data)
+            data = self.pre_validation_transform(data)
             self.validation.validate(data, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
@@ -348,7 +351,7 @@ class BaseEndpoints(MethodView):
             new_obj = {} if request.data.strip() == "" else \
                 request.json.copy()[self.collection]
 
-            new_obj = self.validation.pre_validation_transform(new_obj)
+            new_obj = self.pre_validation_transform(new_obj)
             self.validation.validate(new_obj, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:

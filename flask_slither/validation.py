@@ -1,4 +1,3 @@
-from flask import g
 from mongokit.schema_document import RequireFieldError
 from mongokit.document import Document
 
@@ -14,25 +13,9 @@ class NoValidation():
         pass
 
 
-class SiteNoValidation():
-    """No actual validation, but adds site key to the payload"""
-    errors = {}
-
-    def pre_validation_transform(self, data):
-        data['site'] = g.site['_id']
-        return data
-
-    def validate(self, data, **kwargs):
-        pass
-
-
 class SiteValidation():
     """Site pre_validation payload with mongokit validation"""
     errors = {}
-
-    def pre_validation_transform(self, data):
-        data['site'] = g.site['_id']
-        return data
 
     def validate(self, data, **kwargs):
         self.errors = {}
