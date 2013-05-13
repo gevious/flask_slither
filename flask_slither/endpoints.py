@@ -445,6 +445,8 @@ class BaseEndpoints(MethodView):
             return self._prep_response(e.message, status=400)
 
     def options(self, **kwargs):
+        """This method has been left open for fine grain control in the
+        application (for security reasons)."""
         return NotImplementedError()
 
 
