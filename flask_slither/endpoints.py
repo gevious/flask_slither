@@ -17,7 +17,7 @@ __version__ = '0.1'
 from bson.objectid import ObjectId
 from bson import json_util
 from datetime import datetime
-from flask import current_app, abort, request, make_response, g, Response
+from flask import current_app, abort, request, make_response, g
 from flask.views import MethodView
 from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
@@ -43,12 +43,15 @@ def preflight_checks(f):
                 if hasattr(g, 'authentication_error') else None
             current_app.logger.warning("Unauthenticated request")
             return self._prep_response(msg, status=401)
-        if not self.authorization.is_authorized():
+        if not self.authorization.is_authorized(
+                model=self.model, collection=self.collection):
             current_app.logger.warning("Unauthorized request")
             msg = g.authorization_error \
                 if hasattr(g, 'authorization_error') else None
             return self._prep_response(msg, status=403)
-        g.access_limits = self.authorization.access_limits()
+        g.access_limits = self.authorization.access_limits(
+            model=self.model, collection=self.collection,
+            lookup_field=self.lookup_field, **kwargs)
         if self.collection is None:
             return self._prep_response("No collection defined",
                                        status=424)
@@ -131,7 +134,6 @@ class BaseEndpoints(MethodView):
                        status=200, **kwargs):
         # TODO: handle more mime types
         mime = "application/json"
-        print dct
         rendered = "" if dct is None else json_util.dumps(dct)
     #    rendered = globals()[render](**dct)
         resp = make_response(rendered, status)
@@ -294,7 +296,8 @@ class BaseEndpoints(MethodView):
             change = self.validation.pre_validation_transform(change)
             final = data.copy()
             final.update(change)
-            self.validation.validate(final)
+            self.validation.validate(final, model=self.model,
+                                     collection=self.collection)
             if len(self.validation.errors) > 0:
                 return self._prep_response(self.validation.errors, status=400)
             current_app.db[self.collection].update(
@@ -320,7 +323,8 @@ class BaseEndpoints(MethodView):
 
         try:
             data = self.validation.pre_validation_transform(data)
-            self.validation.validate(data, model=self.model)
+            self.validation.validate(data, model=self.model,
+                                     collection=self.collection)
             if len(self.validation.errors) > 0:
                 return self._prep_response(self.validation.errors, status=400)
             obj_id = current_app.db[self.collection].insert(data)
@@ -345,7 +349,8 @@ class BaseEndpoints(MethodView):
                 request.json.copy()[self.collection]
 
             new_obj = self.validation.pre_validation_transform(new_obj)
-            self.validation.validate(new_obj)
+            self.validation.validate(new_obj, model=self.model,
+                                     collection=self.collection)
             if len(self.validation.errors) > 0:
                 return self._prep_response(self.validation.errors, status=400)
             query = {'$set': new_obj, '$unset': {}}

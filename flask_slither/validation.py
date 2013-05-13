@@ -35,6 +35,7 @@ class SiteValidation():
         return data
 
     def validate(self, data, **kwargs):
+        self.errors = {}
         if 'model' not in kwargs:
             self.errors = {'__internal__': "No model defined for validation"}
             return
