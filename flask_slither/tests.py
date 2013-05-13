@@ -6,6 +6,8 @@ from flask.ext.slither import register_api
 from pymongo import MongoClient
 from unittest import skip
 
+import json
+
 """ Vanilla extention of BaseAPI so we can test all BaseAPI functionality
 as-is"""
 
@@ -88,8 +90,25 @@ class BaseEndpointsTestCase(TestCase):
         #Limit fields returned by instance
         pass
 
-    @skip("Post request")
     def test_post(self):
+        data = {collection_name: {
+            'name': "post", "description": "success is good"}}
+        response = self.client.post('/test', data=json.dumps(data),
+                                    content_type="application/json")
+        self.assertEquals(response.status_code, 201)
+        obj = self.app.db[collection_name].find_one({'name': "post"})
+        self.assertEquals(response.location,
+                          "http://localhost/tests/%s" % str(obj['_id']))
+
+    def test_post_missing_collection(self):
+        data = {'name': "post", "description": "success is good"}
+        response = self.client.post('/test', json.dumps(data),
+                                    content_type="application/json")
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.json, "No collection in payload")
+
+    @skip("Post request on url with a version eg /1.0/tests")
+    def test_post_with_api_version(self):
         pass
 
     @skip("Post request with validation errors")

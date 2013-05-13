@@ -22,6 +22,7 @@ from flask.views import MethodView
 from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.exceptions import ApiException
+from flask.ext.slither.validation import NoValidation
 from mongokit.schema_document import RequireFieldError
 from mongokit.document import Document
 from urllib import urlencode
@@ -53,6 +54,12 @@ class BaseEndpoints(MethodView):
     defined in a child class otherwise mongo won't know which collection to
     use for its transactions."""
     collection = None
+
+    """ The validation class can transform a payload just before validation
+    using the `pre_validation_transform` method which returns the new data
+    dict. After that the `validation` method gets called and stores the
+    errors in a dict called `errors`."""
+    validation = NoValidation()
 
     def __init__(self, app=None):
         if app is not None:
@@ -330,25 +337,31 @@ class BaseEndpoints(MethodView):
 
         data = {} if request.data.strip() == "" else \
             request.json.copy()
+        if self.collection not in data:
+            return self._prep_response("No collection in payload",
+                                       status=400)
         data = data[self.collection]
 
 #        if self.require_site_filter or not g.user['is_superuser']:
 #            data['site'] = g.user['site']
-        data = self._pre_validate(data)
+#        data = self._pre_validate(data)
 
-        obj = self.model(data)
+#        obj = self.model(data)
         try:
-            obj.validate()
-            if len(obj.validation_errors) > 0:
-                return self._validation_response(obj)
+            data = self.validation.pre_validation_transform(data)
+            self.validation.validate(data)
+#            obj.validate()
+            if len(self.validation.errors) > 0:
+                return self._prep_response(self.validation.errors, status=400)
             obj_id = current_app.db[self.collection].insert(data)
-            links = []
+#            links = []
 #            links.append(self._link('self', obj_id=obj_id))
-            links.append(self._link('collection'))
+#            links.append(self._link('collection'))
             #TODO: figure out prefix
-            location = '1.0/%s/%s' % (self.collection, obj_id)
+#            location = '1.0/%s/%s' % (self.collection, obj_id)
+            location = '%s/%s' % (self.collection, obj_id)
 #            return self._prep_response({'links': links}, status=201)
-            return self._prep_response("", status=201,
+            return self._prep_response(status=201,
                                        headers=[('Location', location)])
         except ApiException, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
