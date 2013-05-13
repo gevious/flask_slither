@@ -41,11 +41,15 @@ def preflight_checks(f):
         current_app.logger.debug("%s request received" %
                                  request.method.upper())
         if not self.authentication.is_authenticated():
+            msg = g.authentication_error \
+                if hasattr(g, 'authentication_error') else None
             current_app.logger.warning("Unauthenticated request")
-            return self._prep_response(status=401)
+            return self._prep_response(msg, status=401)
         if not self.authorization.is_authorized():
             current_app.logger.warning("Unauthorized request")
-            return self._prep_response(status=403)
+            msg = g.authorization_error \
+                if hasattr(g, 'authorization_error') else None
+            return self._prep_response(msg, status=403)
         g.access_limits = self.authorization.access_limits()
         if self.collection is None:
             return self._prep_response("No collection defined",
