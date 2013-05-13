@@ -17,26 +17,31 @@ Needed Libraries
 ================
  * Flask
  * pymongo
- * Mongokit (for its validation engine)
+ * (optional) MongoKit (when using the mongokit validation)
 
 Usage
 =====
 Here are the basic code snippets you need to use to get up and running:
 
-    from flask.ext.slither import BaseAPI, register_api, ValidationDocument
-
-    class User(ValidationDocument):
-    structure = {
-      'name': unicode,
-      'surname': unicode,
-      'email': unicode
-    }
-    required_fields = ['name', 'email']
+    from flask.ext.slither import register_api
+    from flask.ext.slither import BaseEndpoints
 
 
-    class UserAPI(BaseAPI):
+    class UserEndpoints(BaseEndpoints):
       def __init__(self, *args, **kwargs):
         self.collection = 'users'  # The db collection name
-        self.model = User  # the model name, used for validation
 
     register_api(app, UserAPI)
+
+Defaults
+========
+By default no authentication, authorization and validation is done on any
+requests. These can be added easily by including them from slither or
+by writing your own class and using it with your endpoint.
+
+Custom Endpoints
+================
+If having basic GET, POST, PATCH, PUT, DELETE endpoints isn't sufficient, you
+can add new endpoints in the usual flask way by adding a new definition with
+the @route decorator. At this stage, however, you'll also need to add the 
+plumbing.
