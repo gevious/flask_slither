@@ -11,7 +11,7 @@ class RegexConverter(BaseConverter):
 
 
 def register_api(mod, view, **kwargs):
-    name = view.__name__[:-3].lower()
+    name = view.__name__.lower()
     endpoint = kwargs.get('endpoint', "%s_api" % name)
     url = "/%s" % kwargs.get('url', "%ss" % name)
     view_func = view.as_view(endpoint)
@@ -22,7 +22,7 @@ def register_api(mod, view, **kwargs):
                      methods=['GET', 'POST', 'OPTIONS'])
     mod.add_url_rule('%s/<regex("[a-f0-9]{24}"):obj_id>' % url,
                      view_func=view_func,
-                     methods=['GET', 'PATCH', 'DELETE', 'OPTIONS'])
+                     methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
     mod.add_url_rule('%s/<lookup>' % url,
                      view_func=view_func,
-                     methods=['GET', 'PATCH', 'DELETE', 'OPTIONS'])
+                     methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])

@@ -26,10 +26,32 @@ from flask.ext.slither.validation import NoValidation
 from mongokit.schema_document import RequireFieldError
 from mongokit.document import Document
 from urllib import urlencode
+from functools import wraps
 
 import pymongo
 import re
 import time
+
+
+def preflight_checks(f):
+    """ This decorator does any checks before the request is allowed through.
+    This includes authentication, authorization, throttling and caching."""
+    @wraps(f)
+    def decorator(self, *args, **kwargs):
+        current_app.logger.debug("%s request received" %
+                                 request.method.upper())
+        if not self.authentication.is_authenticated():
+            current_app.logger.warning("Unauthenticated request")
+            return self._prep_response(status=401)
+        if not self.authorization.is_authorized():
+            current_app.logger.warning("Unauthorized request")
+            return self._prep_response(status=403)
+        g.access_limits = self.authorization.access_limits()
+        if self.collection is None:
+            return self._prep_response("No collection defined",
+                                       status=424)
+        return f(self, *args, **kwargs)
+    return decorator
 
 
 class BaseEndpoints(MethodView):
@@ -37,6 +59,7 @@ class BaseEndpoints(MethodView):
     require_site_filter = True  # usually all queries must contain site filter
     lookup_field = 'name'
     DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
     """ The authentication class has one method called `is_authenticated` and
     returns True or False depending on whether the request is authenticated or
     not. If not, a 401 is returned, otherwise the process continues"""
@@ -150,11 +173,6 @@ class BaseEndpoints(MethodView):
                 break
         return has_perms
 
-    def custom_auth_limits(self, **kwargs):
-        """ This is a placeholder for a subclass to override in case the
-        list of objects needs to be curtailed in a custom way"""
-        return {}
-
     def limit_fields(self, data, **kwargs):
         """ Limit the fields returned in the response"""
         return data
@@ -215,12 +233,21 @@ class BaseEndpoints(MethodView):
         which the user shouldn't not have access to."""
         return data
 
+    def _get_projection(self):
+        projection = None
+        if '_fields' in request.args:
+            projection = {}
+            for k in request.args.getlist('_fields'):
+                projection[k] = 1
+        return projection
+
     def _get_collection(self):
         current_app.logger.debug("GETting collection")
         documents = []
         try:
-            args = {} if g.access_limits is None else g.access_limits
-            cursor = current_app.db[self.collection].find(**args)
+            query = {} if g.access_limits is None else g.access_limits
+            cursor = current_app.db[self.collection] \
+                .find(query, self._get_projection())
             if 'sort' in request.args:
                 sort = []
                 for k, v in json_util.loads(request.args['sort']).iteritems():
@@ -237,20 +264,20 @@ class BaseEndpoints(MethodView):
 
     def _get_instance(self, **kwargs):
         current_app.logger.debug("GETting instance")
-        print kwargs
 
         if 'obj_id' in kwargs:
             query = {'_id': ObjectId(kwargs['obj_id'])}
         else:
             query = {self.lookup_field: kwargs['lookup']}
-        record = current_app.db[self.collection].find(query)
-        if record.count() < 1:
+        count = current_app.db[self.collection].find(query).count()
+        if count < 1:
             raise ApiException("No record found for this lookup")
-        elif record.count() > 1:
+        elif count > 1:
             raise ApiException("Multiple records found for this lookup")
 
         #TODO: add field limits into query so we can use indexes if available
-        doc = current_app.db[self.collection].find_one(query)
+        doc = current_app.db[self.collection].find_one(
+            query, self._get_projection())
         return {self.collection: doc}
 
     def get_links(self, response, args, **kwargs):
@@ -291,24 +318,28 @@ class BaseEndpoints(MethodView):
                         obj_id="?%s" % urlencode(params)))
         return links
 
+    @preflight_checks
+    def delete(self, **kwargs):
+        kwargs['is_instance'] = True
+
+        try:
+            obj = self._get_instance(**kwargs)[self.collection]
+            current_app.db[self.collection].remove(obj['_id'])
+            return self._prep_response(status=204)
+        except ApiException, e:
+            if e.message.find('No record') == 0:
+                return self._prep_response(status=404)
+            else:
+                return self._prep_response(status=409)
+
+    @preflight_checks
     def get(self, **kwargs):
         """ GET request entry point. We split the request into 2 paths:
             Getting a specific instance, either by id or lookup field
             Getting a list of records"""
-        current_app.logger.debug("GET request received")
         current_app.logger.debug("kwargs: %s" % kwargs)
         if 'lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
-        if not self.authentication.is_authenticated(**kwargs):
-            current_app.logger.warning("Unauthenticated request")
-            return self._prep_response(status=401)
-        if not self.authorization.is_authorized(**kwargs):
-            current_app.logger.warning("Unauthorized request")
-            return self._prep_response(status=403)
-        g.access_limits = self.authorization.access_limits()
-        if self.collection is None:
-            return self._prep_response("No collection defined",
-                                       status=424)
         if 'is_instance' in kwargs:
             try:
                 response = self._get_instance(**kwargs)
@@ -322,19 +353,34 @@ class BaseEndpoints(MethodView):
 
         return self._prep_response(response)
 
-    def post(self):
-        current_app.logger.debug("POST request received")
-        if not self.authentication.is_authenticated():
-            current_app.logger.warning("Unauthenticated request")
-            return self._prep_response(status=401)
-        if not self.authorization.is_authorized():
-            current_app.logger.warning("Unauthorized request")
-            return self._prep_response(status=403)
-        g.access_limits = self.authorization.access_limits()
-        if self.collection is None:
-            return self._prep_response("No collection defined",
-                                       status=424)
+    @preflight_checks
+    def patch(self, **kwargs):
+        try:
+            data = self._get_instance(**kwargs)[self.collection]
+            current_app.logger.debug("Obj pre change: %s" % data)
+            change = {} if request.data.strip() == "" else \
+                request.json.copy()[self.collection]
 
+            change = self.validation.pre_validation_transform(change)
+            final = data.copy()
+            final.update(change)
+            self.validation.validate(final)
+            if len(self.validation.errors) > 0:
+                return self._prep_response(self.validation.errors, status=400)
+            current_app.db[self.collection].update(
+                {"_id": data['_id']}, {"$set": change})
+            return self._prep_response({self.collection: final}, status=202)
+        except ApiException, e:
+            if e.message.find('No record') == 0:
+                return self._prep_response(status=404)
+            else:
+                return self._prep_response(status=409)
+        except Exception, e:
+            current_app.logger.warning("Validation Failed: %s" % e.message)
+            return self._prep_response(e.message, status=400)
+
+    @preflight_checks
+    def post(self):
         data = {} if request.data.strip() == "" else \
             request.json.copy()
         if self.collection not in data:
@@ -367,48 +413,36 @@ class BaseEndpoints(MethodView):
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
-    def delete(self, **kwargs):
-        current_app.logger.debug("DELETE request received")
-        kwargs['is_instance'] = True
-        if not self.authorized(**kwargs):
-            current_app.logger.warning("Unauthorized request")
-            abort(403)
-        args = self._auth_limits(**kwargs)
-
-        obj = self._get_instance(args)[self.collection]
-        current_app.db[self.collection].remove(ObjectId(obj['id']))
-        return self._prep_response(status=204)
-
-    def patch(self, **kwargs):
-        current_app.logger.debug("PATCH request received")
-        kwargs['is_instance'] = True
-        if not self.authorized(**kwargs):
-            current_app.logger.warning("Unauthorized request")
-            abort(403)
-        args = self._auth_limits(**kwargs)
-
-        data = self._get_instance(args)[self.collection]
-        current_app.logger.debug("Obj pre change: %s" % data)
-        change = {} if request.data.strip() == "" else \
-            request.json.copy()[self.collection]
-        change = self._pre_validate(change, obj=data)
-        data.update(change)
-        data['_id'] = ObjectId(data.pop('id'))
-        self.obj = self.model(data)
+    @preflight_checks
+    def put(self, **kwargs):
         try:
-            self.obj.validate()
-            if len(self.obj.validation_errors) > 0:
-                return self._prep_response(self._validation_response(self.obj),
-                                           status=400)
+            obj = self._get_instance(**kwargs)[self.collection]
+            new_obj = {} if request.data.strip() == "" else \
+                request.json.copy()[self.collection]
+
+            new_obj = self.validation.pre_validation_transform(new_obj)
+            self.validation.validate(new_obj)
+            if len(self.validation.errors) > 0:
+                return self._prep_response(self.validation.errors, status=400)
+            query = {'$set': new_obj, '$unset': {}}
+
+            # Remove all fields not included in PUT request
+            for k in obj.keys():
+                if k not in new_obj and k != '_id':
+                    query['$unset'][k] = 1
+
             current_app.db[self.collection].update(
-                {"_id": data['_id']}, {"$set": change})
-            data = current_app.db[self.collection].find_one(
-                {'_id': self.obj['_id']})
-            data['id'] = str(data.pop('_id'))
-            return self._prep_response(data, status=204)
+                {"_id": obj['_id']}, query)
+            new_obj['_id'] = obj['_id']
+            return self._prep_response({self.collection: new_obj}, status=202)
+        except ApiException, e:
+            if e.message.find('No record') == 0:
+                return self._prep_response(status=404)
+            else:
+                return self._prep_response(status=409)
         except Exception, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
-            return Response(e.message, 400)
+            return self._prep_response(e.message, status=400)
 
     def options(self, **kwargs):
         return NotImplementedError()
