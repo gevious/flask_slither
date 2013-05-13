@@ -4,7 +4,6 @@ from flask.ext.testing import TestCase
 from flask.ext.slither.endpoints import BaseEndpoints
 from flask.ext.slither import register_api
 from pymongo import MongoClient
-from unittest import skip
 
 import json
 
@@ -138,10 +137,6 @@ class BaseEndpointsTestCase(TestCase):
         self.assertEquals(response.json[collection_name]['name'],
                           data[collection_name]['name'])
 
-    @skip("Patch request with validation errors")
-    def test_patch_validation(self):
-        pass
-
     def test_post(self):
         data = {collection_name: {
             'name': "post", "description": "success is good"}}
@@ -158,14 +153,6 @@ class BaseEndpointsTestCase(TestCase):
                                     content_type="application/json")
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.json, "No collection in payload")
-
-    @skip("Post request on url with a version eg /1.0/tests")
-    def test_post_with_api_version(self):
-        pass
-
-    @skip("Post request with validation errors")
-    def test_post_validation(self):
-        pass
 
     def test_put(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
