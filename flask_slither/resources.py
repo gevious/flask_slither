@@ -3,7 +3,7 @@
     flaskext.slither
     ~~~~~~~~~~~~~~~~
 
-    Flask extension for quickly building RESTful API endpoints from MongoDB.
+    Flask extension for quickly building RESTful API resources from MongoDB.
 
     :copyright: (c) 2010 by Dan Jacob.
     :license: MIT, see LICENSE for more details.
@@ -56,7 +56,7 @@ def preflight_checks(f):
     return decorator
 
 
-class BaseEndpoints(MethodView):
+class BaseResource(MethodView):
     model = None
     require_site_filter = True  # usually all queries must contain site filter
     lookup_field = 'name'

@@ -5,7 +5,7 @@ from flask import Flask, g
 from flask.ext.testing import TestCase
 from flask.ext.slither.authentication import RequestSigningAuthentication
 from flask.ext.slither.authorization import ReadOnlyAuthorization
-from flask.ext.slither.endpoints import BaseEndpoints
+from flask.ext.slither.resources import BaseResource
 from flask.ext.slither.signals import request_authenticated
 from flask.ext.slither import register_api
 from pymongo import MongoClient
@@ -45,16 +45,16 @@ def captured_auth_requests(app):
         request_authenticated.disconnect(record, app)
 
 
-class Endpoints(BaseEndpoints):
+class Resource(BaseResource):
     collection = collection_name
 
 
-class ReadOnlyAuthEndpoints(BaseEndpoints):
+class ReadOnlyAuthResource(BaseResource):
     collection = collection_name
     authorization = ReadOnlyAuthorization()
 
 
-class RequestSigningAuthenticationEndpoints(BaseEndpoints):
+class RequestSigningAuthenticationResource(BaseResource):
     collection = collection_name
     authentication = RequestSigningAuthentication()
 
@@ -70,8 +70,8 @@ class BasicTestCase(TestCase):
         app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
         app.db = app.client[app.config['DB_NAME']]
 
-        # register route endpoints of BaseApi for testing
-        register_api(app, Endpoints, url="test")
+        # register test resource
+        register_api(app, Resource, url="test")
         return app
 
     def setUp(self):
@@ -246,8 +246,8 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
         app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
         app.db = app.client[app.config['DB_NAME']]
 
-        # register route endpoints of BaseApi for testing
-        register_api(app, ReadOnlyAuthEndpoints, url="test")
+        # register test resource
+        register_api(app, ReadOnlyAuthResource, url="test")
         return app
 
     def test_get_list(self):
@@ -318,8 +318,8 @@ class RequestSigningAuthenticationTestCase(BasicTestCase):
         app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
         app.db = app.client[app.config['DB_NAME']]
 
-        # register route endpoints of BaseApi for testing
-        register_api(app, RequestSigningAuthenticationEndpoints, url="test")
+        # register test resource
+        register_api(app, RequestSigningAuthenticationResource, url="test")
         return app
 
     def headers(self, **kwargs):
