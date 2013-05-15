@@ -10,24 +10,27 @@ from setuptools import setup
 
 setup(
     name='Flask-Slither',
-    version='1.0',
+    version='0.3',
     url='http://github.com/gevious/flask_slither',
     license='MIT',
     author='Nico Gevers',
     author_email='ingevious@gmail.com',
     description='A small library between MongoDB and JSON API endpoints',
     long_description=__doc__,
-    py_modules=['flask_slither'],
-    # if you would be using a package instead use packages instead
-    # of py_modules:
-    # packages=['flask_sqlite3'],
+    packages=['flask_slither'],
+    test_suite='nose.collector',
     zip_safe=False,
     include_package_data=True,
     platforms='any',
     install_requires=[
-        'Flask',
-        'pymongo',
-        'mongokit',
+        'Flask==0.9',
+        'pymongo==2.5',
+        'mongokit==0.8.3',
+    ],
+    tests_require=[
+        'Flask-Testing==0.4',
+        'nose==1.3.0',
+        'blinker==1.2'
     ],
     classifiers=[
         'Environment :: Web Environment',

@@ -1,5 +1,15 @@
+"""
+    flaskext.slither
+    ~~~~~~~~~~~~~~~~
+
+    Flask extension for quickly building RESTful API resources from MongoDB.
+
+    :copyright: (c) 2013 by Nico Gevers.
+    :license: MIT, see LICENSE for more details.
+"""
+
 __author__ = 'Nico Gevers'
-__version__ = (0, 0, 1, 'dev')
+__version__ = (0, 0, 2, 'dev')
 
 
 def register_api(mod, view, **kwargs):
@@ -16,3 +26,6 @@ def register_api(mod, view, **kwargs):
     mod.add_url_rule('%s/<lookup>' % url,
                      view_func=view_func,
                      methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
+    #TODO: add hook to add custom routes that user provides
+    #TODO: add regex url mapper somewhere here that works for blueprints
+    #      and where mod=app

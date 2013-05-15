@@ -1,17 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-    flaskext.slither
-    ~~~~~~~~~~~~~~~~
-
-    Flask extension for quickly building RESTful API resources from MongoDB.
-
-    :copyright: (c) 2010 by Dan Jacob.
-    :license: MIT, see LICENSE for more details.
-"""
-
 from __future__ import with_statement
-
-__version__ = '0.1'
 
 #from api.decorators import authenticate
 from bson.objectid import ObjectId
