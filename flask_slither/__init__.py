@@ -3,7 +3,7 @@ __version__ = (0, 0, 1, 'dev')
 
 
 def register_api(mod, view, **kwargs):
-    name = view.__name__.lower()[:-3]  # remove _api from the end
+    name = view.__name__.lower()[:-8]  # remove _api from the end
     endpoint = kwargs.get('endpoint', "%s_api" % name)
     url = "/%s" % kwargs.get('url', "%ss" % name)
     view_func = view.as_view(endpoint)

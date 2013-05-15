@@ -147,7 +147,10 @@ class BaseResource(MethodView):
         return resp
 
     def limit_fields(self, **kwargs):
-        """ Limit the fields returned in the response"""
+        """A set of fields used mongo query. Fields can be passed in the
+        query, but listing them here sets fields up as default. Useful if
+        you want a subset of fields for an object every time except in
+        unusual circumstances, eg {'password': 0}"""
         return {}
 
     def access_limits(self, **kwargs):
