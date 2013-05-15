@@ -13,6 +13,9 @@ building a JSON payload. Slither aims to be the small layer between the
 database and the API resource. It is there to do some housekeeping, but not to
 get in the way.
 
+The aim is to be fully compatible with the [JSONApi](http://jsonapi.org/) spec as
+well as comply to the highest RESTful standards (including HATEOAS) as much as possible.
+
 Needed Libraries
 ================
  * Flask
