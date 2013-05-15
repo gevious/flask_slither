@@ -107,11 +107,17 @@ class RequestSigningAuthentication():
         h = request.host if request.host.find('.') < 0 \
             else request.host.split('.')[0]
         resource = "/%s%s" % (h, request.environ['PATH_INFO'])
+        content_type = request.headers.get('content-type', "").lower()
+
+        # Added this to match header for multipart-form uploads in unit tests
+        if ';' in content_type:
+            content_type = content_type.split(';')[0]
+
         string_to_sign = (
             u"%(verb)s\n%(type)s\n%(content-md5)s\n"
             u"%(date)s\n%(resource)s") % {
                 'verb': request.method.lower(),
-                'type': request.headers.get('content-type', "").lower(),
+                'type': content_type,
                 'content-md5': request.headers.get('content-md5', "").lower(),
                 'date': request.headers.get('fs-date').lower(),
                 'resource': resource}
