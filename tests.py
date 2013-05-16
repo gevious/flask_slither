@@ -234,6 +234,17 @@ class SimpleTestCase(BasicTestCase):
         obj = self.app.db[collection_name].find_one({'_id': obj['_id']})
         self.assertFalse('extra' in obj)
 
+    def test_methods_unavailable(self):
+        orig_allowed = Resource.allowed_methods
+        for k in orig_allowed:
+            allowed_methods = list(orig_allowed)
+            allowed_methods.remove(k)
+            Resource.allowed_methods = []
+            func = getattr(self.client, k.lower())
+            response = func('/test')
+            self.assertEquals(response.status_code, 405, "Error in %s" % k)
+        Resource.allowed_methods = orig_allowed
+
 
 class ReadOnlyAuthorizationTestCase(BasicTestCase):
     def create_app(self):

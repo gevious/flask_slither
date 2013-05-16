@@ -24,6 +24,9 @@ def preflight_checks(f):
     This includes authentication, authorization, throttling and caching."""
     @wraps(f)
     def decorator(self, *args, **kwargs):
+        if request.method not in self.allowed_methods:
+            return self._prep_response("Method Unavailable", status=405)
+
         current_app.logger.debug("%s request received" %
                                  request.method.upper())
         if not self.authentication.is_authenticated():
@@ -68,6 +71,10 @@ class BaseResource(MethodView):
     """ The `validation` method gets called and stores the
     errors in a dict called `errors`."""
     validation = NoValidation()
+
+    """ A list of HTTP methods that are open for use. Any method not on this
+    list will return a 405 if accessed."""
+    allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
     def __init__(self, app=None):
         if app is not None:
