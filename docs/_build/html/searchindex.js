@@ -1,0 +1,1 @@
+Search.setIndex({envversion:42,terms:{index:0,search:0,rapid:0,develop:0,modul:0,well:0,customis:0,project:0,framework:0,api:0,allow:0,need:0,content:0,page:0,bigger:0},objtypes:{},objnames:{},filenames:["index"],titles:["Welcome to Flask Slither"],objects:{},titleterms:{slither:0,welcom:0,flask:0,indic:0,tabl:0,document:[]}})
