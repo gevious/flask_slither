@@ -1,3 +1,4 @@
 *.pyc
 dist/*
 Flask_Slither.egg-info
+docs/_*
