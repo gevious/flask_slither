@@ -239,7 +239,7 @@ class SimpleTestCase(BasicTestCase):
         for k in orig_allowed:
             allowed_methods = list(orig_allowed)
             allowed_methods.remove(k)
-            Resource.allowed_methods = []
+            Resource.allowed_methods = allowed_methods
             func = getattr(self.client, k.lower())
             response = func('/test')
             self.assertEquals(response.status_code, 405, "Error in %s" % k)
