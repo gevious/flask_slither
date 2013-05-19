@@ -155,8 +155,12 @@ class BaseResource(MethodView):
     def pre_validation_transform(self, data, **kwargs):
         """ Transform the data by adding or removing fields before the
         data is validated. Useful for adding server generated fields, such
-        as an author for a post"""
-        data.update(kwargs)
+        as an author for a post. We assume that all fields are mongo references
+        since mostly they will be"""
+        for k, v in kwargs.iteritems():
+            if k == '_lookup':
+                continue
+            data[k] = ObjectId(v)
         return data
 
     def _get_projection(self):
@@ -198,7 +202,7 @@ class BaseResource(MethodView):
         if 'obj_id' in kwargs:
             query = {'_id': ObjectId(kwargs['obj_id'])}
         else:
-            query = {self.lookup_field: kwargs['lookup']}
+            query = {self.lookup_field: kwargs['_lookup']}
 
         query.update(self.access_limits(**kwargs))
 
@@ -271,7 +275,7 @@ class BaseResource(MethodView):
             Getting a specific instance, either by id or lookup field
             Getting a list of records"""
         current_app.logger.debug("kwargs: %s" % kwargs)
-        if 'lookup' in kwargs or 'obj_id' in kwargs:
+        if '_lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
         if 'is_instance' in kwargs:
             try:

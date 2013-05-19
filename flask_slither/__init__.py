@@ -24,7 +24,7 @@ def register_api(mod, view, **kwargs):
     mod.add_url_rule('%s/<regex("[a-f0-9]{24}"):obj_id>' % url,
                      view_func=view_func,
                      methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
-    mod.add_url_rule('%s/<lookup>' % url,
+    mod.add_url_rule('%s/<_lookup>' % url,
                      view_func=view_func,
                      methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
     #TODO: add hook to add custom routes that user provides
