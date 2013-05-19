@@ -276,6 +276,9 @@ class BaseResource(MethodView):
             try:
                 response = self._get_instance(**kwargs)
             except ApiException, e:
+                if isinstance(e.message, dict):
+                    return self._prep_response(
+                        e.message['msg'], status=e.message['status'])
                 if e.message.find('No record') == 0:
                     return self._prep_response(status=404)
                 else:

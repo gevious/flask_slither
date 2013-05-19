@@ -48,6 +48,10 @@ def captured_auth_requests(app):
 class Resource(BaseResource):
     collection = collection_name
 
+    def get(self, **kwargs):
+        g.kwargs = kwargs
+        return super(Resource, self).get(**kwargs)
+
 
 class ReadOnlyAuthResource(BaseResource):
     collection = collection_name
@@ -241,6 +245,59 @@ class SimpleTestCase(BasicTestCase):
             response = func('/test')
             self.assertEquals(response.status_code, 405, "Error in %s" % k)
         Resource.allowed_methods = orig_allowed
+
+
+class UrlsTestCase(TestCase):
+    """ Duplicated some of the simple tests, but with a different url. This
+        is for testing embedded url params (eg a site name) in the path"""
+    def create_app(self):
+        app = Flask(__name__)
+        app.url_map.converters['regex'] = RegexConverter
+
+        app.config['DB_HOST'] = 'localhost'
+        app.config['DB_PORT'] = 27017
+        app.config['DB_NAME'] = 'test_slither'
+        app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
+        app.db = app.client[app.config['DB_NAME']]
+
+        # url includes a company part which should be an id
+        url = '<regex("[a-f0-9]{24}"):company>/test'
+        register_api(app, Resource, url=url)
+        return app
+
+    def setUp(self):
+        # Insert test records
+        for i in range(10):
+            self.app.db[collection_name].insert(
+                {'name': "Record %s" % i, 'extra': "Extra %s" % i})
+        self.app.db['users'].insert(
+            {'username': "testuser", 'auth': {
+                'access_key': "super", 'secret_key': "duper"}})
+        u_id = str(self.app.db['users'].find_one()['_id'])
+        self.url = "/%s/test" % u_id
+
+    def tearDown(self):
+        self.app.db[collection_name].drop()
+        self.app.db['users'].drop()
+
+    def test_get_list(self):
+        with self.app.test_client() as c:
+            response = c.get(self.url)
+            self.assertEquals(response.status_code, 200)
+            u_id = str(self.app.db['users'].find_one()['_id'])
+            self.assertEquals(g.kwargs['company'], u_id)
+            self.assertEquals(response.json.keys(), [collection_name])
+            self.assertEquals(len(response.json[collection_name]), 10)
+            for i in range(10):
+                self.assertEquals(response.json[collection_name][i]['name'],
+                                  "Record %s" % i)
+                self.assertEquals(response.json[collection_name][i]['extra'],
+                                  "Extra %s" % i)
+
+    def test_get_list_invalid_url(self):
+        self.url = "/%s" % self.url[2:]
+        response = self.client.get(self.url)
+        self.assertEquals(response.status_code, 404)
 
 
 class ReadOnlyAuthorizationTestCase(BasicTestCase):
