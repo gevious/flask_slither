@@ -49,7 +49,6 @@ def preflight_checks(f):
 
 class BaseResource(MethodView):
     model = None
-    require_site_filter = True  # usually all queries must contain site filter
     lookup_field = 'name'
     DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 

@@ -79,16 +79,13 @@ class BasicTestCase(TestCase):
         for i in range(10):
             self.app.db[collection_name].insert(
                 {'name': "Record %s" % i, 'extra': "Extra %s" % i})
-        site_id = self.app.db['sites'].insert(
-            {'name': "Test Site", 'key': "sitekey"})
         self.app.db['users'].insert(
-            {'username': "testuser", 'site': site_id, 'auth': {
+            {'username': "testuser", 'auth': {
                 'access_key': "super", 'secret_key': "duper"}})
 
     def tearDown(self):
         self.app.db[collection_name].drop()
         self.app.db['users'].drop()
-        self.app.db['sites'].drop()
 
 
 class SimpleTestCase(BasicTestCase):
@@ -357,39 +354,24 @@ class RequestSigningAuthenticationTestCase(BasicTestCase):
         return {
             'content_type': "application/json",
             'headers': [('Authorization', "FS %s:%s" % (a_key, signature)),
-            ('fs-date', kwargs.get('date', now)),
-            ('fs-site', kwargs.get('site', 'sitekey'))]}
-
-    def test_site_missing(self):
-        self.app.logger.info("T: Sending request without site")
-        response = self.client.get('/test')
-        self.assertEquals(response.status_code, 401)
-        self.assertEquals(response.json, "No site specified")
-
-    def test_site_invalid(self):
-        self.app.logger.info("T: Sending request with invalid site")
-        headers = self.headers(site='gone')
-        response = self.client.get('/test', **headers)
-        self.assertEquals(response.status_code, 401)
-        self.assertEquals(response.json, "Invalid site")
+            ('fs-date', kwargs.get('date', now))]}
 
     def test_no_authorization_header(self):
         self.app.logger.info("T: Sending request without authorization")
-        headers = [('fs-site', 'sitekey')]
-        response = self.client.get('/test', headers=headers)
+        response = self.client.get('/test')
         self.assertEquals(response.status_code, 401)
         self.assertEquals(response.json, "No authorization header")
 
     def test_no_FS(self):
         self.app.logger.info("T: Sending request without authorization")
-        headers = [('fs-site', 'sitekey'), ('Authorization', "test")]
+        headers = [('Authorization', "test")]
         response = self.client.get('/test', headers=headers)
         self.assertEquals(response.status_code, 401)
         self.assertEquals(response.json, "Malformed authorization header")
 
     def test_no_date(self):
         self.app.logger.info("T: Sending request without date")
-        headers = [('fs-site', 'sitekey'), ('Authorization', "FS ")]
+        headers = [('Authorization', "FS ")]
         response = self.client.get('/test', headers=headers)
         self.assertEquals(response.status_code, 401)
         self.assertEquals(response.json, "Missing date in header")

@@ -19,9 +19,6 @@ class NoAuthentication():
 class RequestSigningAuthentication():
     """This authentication method is based on amazon's request signing. It
     has a few tweaks that might be needed for most applications:
-     * A `fs-site` header is needed for routing a request to a certain site.
-       This can just be a custom value, but for multi tenent approach, it is
-       useful to have a site differentiator built into authentication
      * A `fs-date` header which contains the current date
      * The `authorization` header is built up from the current request. It is
        in the format 'FS access_key:signature'
@@ -29,9 +26,7 @@ class RequestSigningAuthentication():
     If the request is successful, the authenticated user is stored in the
     global object for later use.
 
-    Note: For this to work the site must have a sites collection with
-    records having a name and a key field. The key is passed in the header.
-    Also, the users collection must exist with a username field as well as a
+    Note: The users collection must exist with a username field as well as a
     subdoc consisting of access_key, secret_key"""
 
     def is_authenticated(self, **kwargs):
@@ -41,29 +36,16 @@ class RequestSigningAuthentication():
 
         if current_app.config.get('DEBUG', False) is True:
             current_app.logger.warning("In DEBUG mode. No Auth Required")
-            g.site = current_app.db['sites'].find_one()
-            if g.site is None:
-                g.authentication_error = "No site in database"
-                return False
             g.user = current_app.db['users'].find_one(
-                {'site': g.site['_id'], 'is_superuser': True})
+                {'is_superuser': True})
             if g.user is None:
                 g.authentication_error = "No superuser in database"
                 return False
             current_app.logger.info("Logged in as %s on %s" %
-                                    (g.user['username'], g.site['name']))
+                                    (g.user['username']))
             request_authenticated.send(current_app._get_current_object(),
                                        user=g.user)
             return True
-
-        if 'Fs-Site' not in request.headers:
-            g.authentication_error = "No site specified"
-            return False
-        g.site = current_app.db['sites'].find_one(
-            {'key': request.headers['Fs-Site']})
-        if g.site is None:
-            g.authentication_error = "Invalid site"
-            return False
 
         if 'Authorization' not in request.headers:
             g.authentication_error = "No authorization header"
@@ -97,7 +79,7 @@ class RequestSigningAuthentication():
         signature = signature[1]
 
         g.user = current_app.db['users'].find_one(
-            {'site': g.site['_id'], 'auth.access_key': access_key})
+            {'auth.access_key': access_key})
         if g.user is None:
             current_app.logger.debug("No matching access key found")
             g.authentication_error = "Access denied"
