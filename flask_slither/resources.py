@@ -152,10 +152,11 @@ class BaseResource(MethodView):
         authentication access"""
         return {}
 
-    def pre_validation_transform(self, data):
+    def pre_validation_transform(self, data, **kwargs):
         """ Transform the data by adding or removing fields before the
         data is validated. Useful for adding server generated fields, such
         as an author for a post"""
+        data.update(kwargs)
         return data
 
     def _get_projection(self):
@@ -296,7 +297,7 @@ class BaseResource(MethodView):
             change = {} if request.data.strip() == "" else \
                 request.json.copy()[self.collection]
 
-            change = self.pre_validation_transform(change)
+            change = self.pre_validation_transform(change, **kwargs)
             final = data.copy()
             final.update(change)
             self.validation.validate(final, model=self.model,
@@ -316,7 +317,7 @@ class BaseResource(MethodView):
             return self._prep_response(e.message, status=400)
 
     @preflight_checks
-    def post(self):
+    def post(self, **kwargs):
         data = {} if request.data.strip() == "" else \
             request.json.copy()
         if self.collection not in data:
@@ -325,7 +326,7 @@ class BaseResource(MethodView):
         data = data[self.collection]
 
         try:
-            data = self.pre_validation_transform(data)
+            data = self.pre_validation_transform(data, **kwargs)
             self.validation.validate(data, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
@@ -336,8 +337,19 @@ class BaseResource(MethodView):
 #            links.append(self._link('collection'))
             #TODO: figure out prefix
 #            location = '1.0/%s/%s' % (self.collection, obj_id)
-            location = '%s/%s' % (self.collection, obj_id)
-#            return self._prep_response({'links': links}, status=201)
+
+            # Swap placeholders in url with actual values
+            location = self._url
+            for k, v in kwargs.iteritems():
+                idx = location.find(k)
+                if idx < 0:
+                    continue
+                start_idx = location.rfind('/', 0, idx)
+                end_idx = location[idx:].find('/') + idx
+                location = "%s%s%s" % \
+                    (location[:start_idx], v, location[end_idx:])
+
+            location = '%s/%s' % (location, obj_id)
             return self._prep_response(status=201,
                                        headers=[('Location', location)])
         except ApiException, e:
@@ -351,7 +363,7 @@ class BaseResource(MethodView):
             new_obj = {} if request.data.strip() == "" else \
                 request.json.copy()[self.collection]
 
-            new_obj = self.pre_validation_transform(new_obj)
+            new_obj = self.pre_validation_transform(new_obj, **kwargs)
             self.validation.validate(new_obj, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:

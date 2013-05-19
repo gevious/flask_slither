@@ -299,6 +299,19 @@ class UrlsTestCase(TestCase):
         response = self.client.get(self.url)
         self.assertEquals(response.status_code, 404)
 
+    def test_post(self):
+        data = {collection_name: {
+            'name': "post", "description": "success is good"}}
+        response = self.client.post(self.url, data=json.dumps(data),
+                                    content_type="application/json")
+        self.assertEquals(response.status_code, 201)
+        obj = self.app.db[collection_name].find_one({'name': "post"})
+        self.assertEquals(response.location,
+                          "http://localhost%s/%s" %
+                          (self.url, str(obj['_id'])))
+        r = self.client.get(response.location[len('http://localhost/'):])
+        self.assertEquals(r.status_code, 200)
+
 
 class ReadOnlyAuthorizationTestCase(BasicTestCase):
     def create_app(self):
