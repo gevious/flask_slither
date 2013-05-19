@@ -13,8 +13,8 @@ class NoValidation():
         pass
 
 
-class SiteValidation():
-    """Site pre_validation payload with mongokit validation"""
+class Validation():
+    """Object validation using MongoKit"""
     errors = {}
 
     def validate(self, data, **kwargs):
