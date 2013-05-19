@@ -168,13 +168,13 @@ class BaseResource(MethodView):
         final.update(projection)
         return None if final == {} else final
 
-    def _get_collection(self):
+    def _get_collection(self, **kwargs):
         current_app.logger.debug("GETting collection")
         documents = []
         try:
             query = {} if 'where' not in request.args else \
                 json_util.loads(request.args.get('where'))
-            query.update(self.access_limits())
+            query.update(self.access_limits(**kwargs))
             cursor = current_app.db[self.collection] \
                 .find(query, self._get_projection())
             if 'sort' in request.args:
@@ -284,7 +284,7 @@ class BaseResource(MethodView):
                 else:
                     return self._prep_response(status=409)
         else:
-            response = self._get_collection()
+            response = self._get_collection(**kwargs)
 
         return self._prep_response(response)
 
