@@ -203,7 +203,7 @@ class SimpleTestCase(BasicTestCase):
         self.assertEquals(response.status_code, 201)
         obj = self.app.db[collection_name].find_one({'name': "post"})
         self.assertEquals(response.location,
-                          "http://localhost/tests/%s" % str(obj['_id']))
+                          "http://localhost/test/%s" % str(obj['_id']))
 
     def test_post_missing_collection(self):
         data = {'name': "post", "description": "success is good"}
