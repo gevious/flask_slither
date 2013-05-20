@@ -12,10 +12,19 @@ __author__ = 'Nico Gevers'
 __version__ = (0, 0, 2, 'dev')
 
 
+def _pluralize(name):
+    if name.strip() == "":
+        return name
+
+    if name[-1] == 'y':
+        name = "%sie" % name[:-1]
+    return "%ss" % name
+
+
 def register_api(mod, view, **kwargs):
     name = view.__name__.lower()[:-8]  # remove _api from the end
     endpoint = kwargs.get('endpoint', "%s_api" % name)
-    url = "/%s" % kwargs.get('url', "%ss" % name)
+    url = "/%s" % kwargs.get('url', _pluralize(name))
     setattr(view, '_url', url)  # need this for 201 location header
     view_func = view.as_view(endpoint)
 

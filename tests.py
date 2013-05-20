@@ -6,7 +6,7 @@ from flask.ext.testing import TestCase
 from flask.ext.slither.authentication import RequestSigningAuthentication
 from flask.ext.slither.authorization import ReadOnlyAuthorization
 from flask.ext.slither.resources import BaseResource
-from flask.ext.slither.signals import request_authenticated
+from flask.ext.slither.signals import request_authenticated, post_create
 from flask.ext.slither import register_api
 from pymongo import MongoClient
 from hashlib import sha1
@@ -43,6 +43,19 @@ def captured_auth_requests(app):
         yield recorded
     finally:
         request_authenticated.disconnect(record, app)
+
+
+@contextmanager
+def captured_post_create(app):
+    recorded = []
+
+    def record(sender, **extra):
+        recorded.append(extra)
+    post_create.connect(record, app)
+    try:
+        yield recorded
+    finally:
+        post_create.disconnect(record, app)
 
 
 class Resource(BaseResource):
@@ -196,14 +209,19 @@ class SimpleTestCase(BasicTestCase):
                           data[collection_name]['name'])
 
     def test_post(self):
-        data = {collection_name: {
-            'name': "post", "description": "success is good"}}
-        response = self.client.post('/test', data=json.dumps(data),
-                                    content_type="application/json")
-        self.assertEquals(response.status_code, 201)
-        obj = self.app.db[collection_name].find_one({'name': "post"})
-        self.assertEquals(response.location,
-                          "http://localhost/test/%s" % str(obj['_id']))
+        with captured_post_create(self.app) as arqs:
+            data = {collection_name: {
+                'name': "post", "description": "success is good"}}
+            response = self.client.post('/test', data=json.dumps(data),
+                                        content_type="application/json")
+            self.assertEquals(response.status_code, 201)
+            obj = self.app.db[collection_name].find_one({'name': "post"})
+            self.assertEquals(response.location,
+                              "http://localhost/test/%s" % str(obj['_id']))
+            self.assertEquals(len(arqs), 1)
+            for k, v in data[collection_name].iteritems():
+                self.assertEquals(arqs[0]['data'][k], v)
+            self.assertFalse(arqs[0]['data']['_id'] is None)
 
     def test_post_missing_collection(self):
         data = {'name': "post", "description": "success is good"}

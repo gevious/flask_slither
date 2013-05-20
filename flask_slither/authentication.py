@@ -26,7 +26,7 @@ class RequestSigningAuthentication():
     If the request is successful, the authenticated user is stored in the
     global object for later use.
 
-    Note: The users collection must exist with a username field as well as a
+    Note: The users collection must exist with a email field as well as a
     subdoc consisting of access_key, secret_key"""
 
     def is_authenticated(self, **kwargs):
@@ -42,7 +42,7 @@ class RequestSigningAuthentication():
                 g.authentication_error = "No superuser in database"
                 return False
             current_app.logger.info("Logged in as %s on %s" %
-                                    (g.user['username']))
+                                    (g.user['email']))
             request_authenticated.send(current_app._get_current_object(),
                                        user=g.user)
             return True
