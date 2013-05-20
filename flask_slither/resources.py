@@ -164,6 +164,10 @@ class BaseResource(MethodView):
             data[k] = ObjectId(v)
         return data
 
+    def post_save(self, **kwargs):
+        """ A hook to run other code that depends on successful post"""
+        pass
+
     def _get_projection(self):
         projection = {}
         if '_fields' in request.args:
@@ -311,6 +315,8 @@ class BaseResource(MethodView):
                 return self._prep_response(self.validation.errors, status=400)
             current_app.db[self.collection].update(
                 {"_id": data['_id']}, {"$set": change})
+            self.post_save(collection=self.collection, data=data,
+                           change=change)
             return self._prep_response({self.collection: final}, status=202)
         except ApiException, e:
             if e.message.find('No record') == 0:
@@ -339,8 +345,9 @@ class BaseResource(MethodView):
             obj_id = current_app.db[self.collection].insert(data)
 
             user = None if not hasattr(g, 'user') else g.user
-            post_create.send(current_app._get_current_object(),
-                             user=user, data=data)
+            self.post_save(collection=self.collection, data=data)
+            post_create.send(current_app._get_current_object(), create=True,
+                             collection=self.collection, user=user, data=data)
             # Swap placeholders in url with actual values
             location = self._url
             for k, v in kwargs.iteritems():
@@ -381,6 +388,7 @@ class BaseResource(MethodView):
             current_app.db[self.collection].update(
                 {"_id": obj['_id']}, query)
             new_obj['_id'] = obj['_id']
+            self.post_save(collection=self.collection, data=new_obj)
             return self._prep_response({self.collection: new_obj}, status=202)
         except ApiException, e:
             if e.message.find('No record') == 0:
