@@ -34,15 +34,14 @@ class RequestSigningAuthentication():
             current_app.logger.info("Allowing OPTIONS request through")
             return True
 
-        if current_app.config.get('DEBUG', False) is True:
+        if current_app.debug is True:
             current_app.logger.warning("In DEBUG mode. No Auth Required")
             g.user = current_app.db['users'].find_one(
                 {'is_superuser': True})
             if g.user is None:
                 g.authentication_error = "No superuser in database"
                 return False
-            current_app.logger.info("Logged in as %s on %s" %
-                                    (g.user['email']))
+            current_app.logger.info("Logged in as %s" % (g.user['email']))
             request_authenticated.send(current_app._get_current_object(),
                                        user=g.user)
             return True

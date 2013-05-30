@@ -158,6 +158,9 @@ class BaseResource(MethodView):
         data is validated. Useful for adding server generated fields, such
         as an author for a post. We assume that all fields are mongo references
         since mostly they will be"""
+        for k, v in data.iteritems():
+            if isinstance(v, dict) and '$oid' in v:
+                data[k] = ObjectId(v['$oid'])
         for k, v in kwargs.iteritems():
             if k == '_lookup':
                 continue
@@ -167,6 +170,10 @@ class BaseResource(MethodView):
     def post_save(self, **kwargs):
         """ A hook to run other code that depends on successful post"""
         pass
+
+    def delete_query(self, **kwargs):
+        obj = self._get_instance(**kwargs)[self.collection]
+        return obj['_id']
 
     def _get_projection(self):
         projection = {}
@@ -265,8 +272,7 @@ class BaseResource(MethodView):
         kwargs['is_instance'] = True
 
         try:
-            obj = self._get_instance(**kwargs)[self.collection]
-            current_app.db[self.collection].remove(obj['_id'])
+            current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
         except ApiException, e:
             if e.message.find('No record') == 0:
