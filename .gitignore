@@ -2,3 +2,4 @@
 dist/*
 Flask_Slither.egg-info
 docs/_*
+build

@@ -13,7 +13,7 @@ bigger projects.
 .. toctree::
    :maxdepth: 2
 
-    tutorial
+   tutorial
 
 Requirements
 ============
