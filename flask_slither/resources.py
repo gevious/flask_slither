@@ -323,7 +323,7 @@ class BaseResource(MethodView):
                 {"_id": data['_id']}, {"$set": change})
             self.post_save(collection=self.collection, data=data,
                            change=change)
-            return self._prep_response({self.collection: final}, status=202)
+            return self._prep_response(status=204)
         except ApiException, e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
@@ -395,7 +395,7 @@ class BaseResource(MethodView):
                 {"_id": obj['_id']}, query)
             new_obj['_id'] = obj['_id']
             self.post_save(collection=self.collection, data=new_obj)
-            return self._prep_response({self.collection: new_obj}, status=202)
+            return self._prep_response(status=204)
         except ApiException, e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
