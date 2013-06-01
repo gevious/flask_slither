@@ -35,17 +35,17 @@ virtualenv for your project then load the needed dependencies.::
     $ virtualenv --no-site-packages library
     $ cd library
     ~/library $ source ./bin/activate
-    ~/library $ pip install Flask-Slither
+    ~/library $ pip install Flask-Slither python-dateutil pytz blinker
 
 All dependencies needed for Flask-Slither will be installed, so there is no
 need to explicitly install Flask first. The output will reveal that Flask is,
 in fact, installed as well.
 
 .. note::
-  The dateutil, pytz and blinker libraries are installed by default and are
-  used by some of the authentication module. If you're running a lean system
-  and don't want the overhead, you can override the modules that need the
-  libraries and remove them from your virtualenv.
+  The dateutil, pytz and blinker libraries a are used by some of the
+  authentication module. If you're running a lean system and don't want the
+  overhead, you can override the modules that need the libraries and remove
+  them from your virtualenv.
 
 To make sure that your install was successful open a python prompt and type
 the following::
@@ -61,6 +61,7 @@ We'll be creating a very simple Flask app.  First we create a directory for
 our application and then edit the `__init__.py` file using our favourite editor::
 
     $ mkdir app
+    $ cd app
     $ vi __init__.py
 
 Next we create a basic Flask application (in `app/__init__.py`).
@@ -76,6 +77,7 @@ Next we create a basic Flask application (in `app/__init__.py`).
 
     app = Flask(__name__)
 
+
     class RegexConverter(BaseConverter):
         def __init__(self, url_map, *items):
             super(RegexConverter, self).__init__(url_map)
@@ -88,7 +90,7 @@ Next we create a basic Flask application (in `app/__init__.py`).
     app.config['DB_PORT'] = 27017
     app.config['DB_NAME'] = 'library'
     client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
-    app.db = client['app.config['DB_NAME']]
+    app.db = client[app.config['DB_NAME']]
 
     if __name__ == "__main__":
        app.run(debug=True)
@@ -96,7 +98,6 @@ Next we create a basic Flask application (in `app/__init__.py`).
 To check that we're on the right track, run the application by issuing the 
 following command::
 
-    ~/library $ cd app
     ~/library $ python __init__.py
      * Running on http://127.0.0.1:5000/
      * Restarting with reloader
@@ -111,8 +112,8 @@ following command::
   just by its unique mongo id, but also by a field. By default it is the name
   field, but can be set per resource.
 
-Creating the Resources
-======================
+Interacting with the API (Part I)
+=================================
 
 Now that we know our setup is good, lets create the resources. We want our API
 to support the following functions:
@@ -135,10 +136,12 @@ with, lets create our two resources (in `__init__.py`).
 .. code-block:: python
 
     ...
-    app.url_map.converters['regex'] = RegexConverter
+    app.db = client[app.config['DB_NAME']]
+
 
     class BookResource(BaseResource):
         collection = 'books'
+
 
     class LendingResource(BaseResource):
         collection = 'books'
@@ -167,7 +170,7 @@ from the command line.::
 
 Ah, its working. But we have no books in the library just yet. Lets add one::
 
-  $ curl --dump-header - -H "Content-Type: application/json" -X POST --data '{"books": {"name": "Python Cookbook, 3rd Edition", "quantity": 8, "isbn":"978-1449340377"}}' http://127.0.0.1:5000/books
+  $ curl --dump-header - -H "Content-Type: application/json" -X POST --data '{"books": {"name": "Python Cookbook, 3rd Edition", "quantity": 8, "ISBN":"978-1449340377"}}' http://127.0.0.1:5000/books
   HTTP/1.0 201 CREATED
   Content-Type: application/json
   Content-Length: 0
@@ -192,3 +195,49 @@ to access that book from the link::
 .. note::
   The actual location of the book will differ on your setup, so copying of the
   cURL command verbatim will not work. Rather copy it from the location header.
+
+Great. We've managed to easly create a book and see if its there. Now we've
+decided we'd rather have the edition in a separate field. Lets update the book
+as follows::
+
+
+  $ curl -H "Content-Type: application/json" -X PATCH --data '{"books": {"name": "Python Cookbook", "edition": "3rd"}}' http://127.0.0.1:5000/books/51a8feb6421aa965ffaf1435
+  {"books": {"edition": "3rd", "_id": {"$oid": "51a8feb6421aa965ffaf1435"}, "ISBN": "978-1449340377", "name": "Python Cookbook", "quantity": 8}}
+  
+
+We've easily been able to update the record with a PATCH command. Here we're
+leveraging the power of MongoDB in adding new fields at will. We could have
+decided to use the PUT request, instead of PATCH. They work in much the same
+way, except that PUT requires that all fields be passed to the server, while
+PATCH only requires changed fields.
+
+Lets create a few more books for our library::
+
+
+  $ curl -H "Content-Type: application/json" -X POST --data '{"books": {"name": "The Quick Python Book", "edition": "2nd", "quantity": 12, "ISBN":"978-1935182207"}}' http://127.0.0.1:5000/books
+  $ curl -H "Content-Type: application/json" -X POST --data '{"books": {"name": "Python for Kids", "edition": "3rd", "quantity": 1}}' http://127.0.0.1:5000/books
+  $ curl -H "Content-Type: application/json" -X POST --data '{"books": {"name": "Invent Your Own Computer Games with Python", "edition": "2nd", "quantity": 2, "ISBN": "978-0982106013"}}' http://127.0.0.1:5000/books
+
+We now have a total of four different books in the library. Unfortunately there
+has been a change in management, and the new boss tells us to remove all books
+without an ISBN number. We decide to run a query to find all books without an
+ISBN number and then delete each one manually::
+
+  $ curl -g 'http://127.0.0.1:5000/books?where={"ISBN":{"$exists":false}}'
+  {"books": [{"edition": "3rd", "quantity": 1, "id": "51aa38b5421aa90e83a40e0b", "name": "Python for Kids"}]}
+
+Only one book found, and that's the book "Python for Kids" To delete it we
+run the following command::
+
+
+  $ curl -X delete http://127.0.0.1:5000/books/51aa38b5421aa90e83a40e0b
+  $ curl -g 'http://127.0.0.1:5000/books?where={"ISBN":{"$exists":false}}'
+  {"books": []}
+
+
+Interacting with the API (Part II)
+==================================
+
+In the first part we set up the endpoints and tested that the resource
+responded correctly to the API calls. In this part we'll focus on the `lending`
+resource and manipulate the quantity of books through that api endpoint.
