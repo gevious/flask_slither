@@ -202,11 +202,9 @@ class SimpleTestCase(BasicTestCase):
         response = self.client.patch('/test/%s' % str(obj['_id']),
                                      data=json.dumps(data),
                                      content_type="application/json")
-        self.assertEquals(response.status_code, 202)
+        self.assertEquals(response.status_code, 204)
         obj = self.app.db[collection_name].find_one({'_id': obj['_id']})
         self.assertEquals(obj['name'], data[collection_name]['name'])
-        self.assertEquals(response.json[collection_name]['name'],
-                          data[collection_name]['name'])
 
     def test_post(self):
         with captured_post_create(self.app) as arqs:
@@ -236,12 +234,10 @@ class SimpleTestCase(BasicTestCase):
         response = self.client.put('/test/%s' % str(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
-        self.assertEquals(response.status_code, 202)
+        self.assertEquals(response.status_code, 204)
         obj = self.app.db[collection_name].find_one({'_id': obj['_id']})
         for k in ['name', 'extra']:
             self.assertEquals(obj[k], data[collection_name][k])
-            self.assertEquals(response.json[collection_name][k],
-                              data[collection_name][k])
 
     def test_put_exclude_field(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
@@ -249,7 +245,7 @@ class SimpleTestCase(BasicTestCase):
         response = self.client.put('/test/%s' % str(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
-        self.assertEquals(response.status_code, 202)
+        self.assertEquals(response.status_code, 204)
         obj = self.app.db[collection_name].find_one({'_id': obj['_id']})
         self.assertFalse('extra' in obj)
 
