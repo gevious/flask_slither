@@ -26,9 +26,6 @@ setup(
         'Flask==0.9',
         'pymongo==2.5',
         'mongokit==0.8.3',
-        'python-dateutil==2.1',
-        'blinker==1.2',
-        'pytz==2013b'
     ],
     tests_require=[
         'Flask-Testing==0.4',
