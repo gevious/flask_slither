@@ -230,7 +230,7 @@ Only one book found, and that's the book "Python for Kids" To delete it we
 run the following command::
 
 
-  $ curl -X delete http://127.0.0.1:5000/books/51aa38b5421aa90e83a40e0b
+  $ curl -X DELETE http://127.0.0.1:5000/books/51aa38b5421aa90e83a40e0b
   $ curl -g 'http://127.0.0.1:5000/books?where={"ISBN":{"$exists":false}}'
   {"books": []}
 
