@@ -1,5 +1,8 @@
-Flask Slither [![Build Status](https://travis-ci.org/gevious/flask_slither.png)](https://travis-ci.org/gevious/flask_slither)
+Flask Slither
 =============
+
+ [![Build Status](https://travis-ci.org/gevious/flask_slither.png?branch=master)](https://travis-ci.org/gevious/flask_slither)
+ [![Build Coverage](https://coveralls.io/r/gevious/badge.png?branch=master)](https://coveralls.io/r/gevious/flask_slither)
 
 A small library to interface between a mongodb and JSON RESTful API resources.
 It uses Flask's `MethodView` and populates it with boilerplate code. It is based
