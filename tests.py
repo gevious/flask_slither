@@ -26,32 +26,6 @@ class RegexConverter(BaseConverter):
         self.regex = items[0]
 
 
-@contextmanager
-def captured_auth_requests(app):
-    recorded = []
-
-    def record(sender, user, **extra):
-        recorded.append(user)
-    request_authenticated.connect(record, app)
-    try:
-        yield recorded
-    finally:
-        request_authenticated.disconnect(record, app)
-
-
-@contextmanager
-def captured_post_create(app):
-    recorded = []
-
-    def record(sender, **extra):
-        recorded.append(extra)
-    post_create.connect(record, app)
-    try:
-        yield recorded
-    finally:
-        post_create.disconnect(record, app)
-
-
 class Resource(BaseResource):
     collection = collection_name
 
@@ -196,19 +170,16 @@ class SimpleTestCase(BasicTestCase):
         self.assertEquals(obj['name'], data[collection_name]['name'])
 
     def test_post(self):
-        with captured_post_create(self.app) as arqs:
-            data = {collection_name: {
-                'name': "post", "description": "success is good"}}
-            response = self.client.post('/test', data=json.dumps(data),
-                                        content_type="application/json")
-            self.assertEquals(response.status_code, 201)
-            obj = self.app.db[collection_name].find_one({'name': "post"})
-            self.assertEquals(response.location,
-                              "http://localhost/test/%s" % str(obj['_id']))
-            self.assertEquals(len(arqs), 1)
-            for k, v in data[collection_name].iteritems():
-                self.assertEquals(arqs[0]['data'][k], v)
-            self.assertFalse(arqs[0]['data']['_id'] is None)
+        data = {collection_name: {
+            'name': "post", "description": "success is good"}}
+        response = self.client.post('/test', data=json.dumps(data),
+                                    content_type="application/json")
+        self.assertEquals(response.status_code, 201)
+        obj = self.app.db[collection_name].find_one({'name': "post"})
+        self.assertEquals(response.location,
+                          "http://localhost/test/%s" % str(obj['_id']))
+        for k, v in data[collection_name].iteritems():
+            self.assertEquals(obj[k], v)
 
     def test_post_missing_collection(self):
         data = {'name': "post", "description": "success is good"}

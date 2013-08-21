@@ -10,7 +10,6 @@ from flask.views import MethodView
 from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.exceptions import ApiException
-from flask.ext.slither.signals import post_create
 from flask.ext.slither.validation import NoValidation
 from urllib import urlencode
 from functools import wraps
@@ -350,10 +349,7 @@ class BaseResource(MethodView):
                 return self._prep_response(self.validation.errors, status=400)
             obj_id = current_app.db[self.collection].insert(data)
 
-            user = None if not hasattr(g, 'user') else g.user
             self.post_save(collection=self.collection, data=data)
-            post_create.send(current_app._get_current_object(), create=True,
-                             collection=self.collection, user=user, data=data)
             # Swap placeholders in url with actual values
             location = self._url
             for k, v in kwargs.iteritems():
