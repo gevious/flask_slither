@@ -367,7 +367,9 @@ class BaseResource(MethodView):
 
             self.post_save(collection=self.collection, data=data)
             location = self.get_location(obj_id, **kwargs)
-            return self._prep_response(status=201,
+            if '_id' in data:  # an update, so lets return 200
+                return self._prep_response()
+            return self._prep_response(status=200,
                                        headers=[('Location', location)])
         except ApiException, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
