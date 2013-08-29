@@ -70,9 +70,13 @@ class SimpleTestCase(BasicTestCase):
     def test_delete_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         count = self.app.db[collection_name].count()
+        self.assertFalse(self.app.db[collection_name].find_one(
+            {'_id': obj_id}) is None)
         response = self.client.delete("/test/%s" % str(obj_id))
         self.assertEquals(response.status_code, 204)
         self.assertEquals(self.app.db[collection_name].count(), count - 1)
+        self.assertTrue(self.app.db[collection_name].find_one(
+            {'_id': obj_id}) is None)
 
     def test_delete_by_lookup(self):
         count = self.app.db[collection_name].count()
