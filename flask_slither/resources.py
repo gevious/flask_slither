@@ -5,7 +5,7 @@ from __future__ import with_statement
 from bson.objectid import ObjectId
 from bson import json_util
 from datetime import datetime
-from flask import current_app, abort, request, make_response, g
+from flask import current_app, abort, request, make_response, g, redirect
 from flask.views import MethodView
 from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
@@ -118,6 +118,8 @@ class BaseResource(MethodView):
     ## Preparing response into proper mime
     def _prep_response(self, dct=None, last_modified=None, etag=None,
                        status=200, **kwargs):
+        if hasattr(self, 'redirect'):
+            return redirect(self.redirect)
         # TODO: handle more mime types
         mime = "application/json"
         rendered = "" if dct is None else json_util.dumps(dct)
@@ -266,6 +268,20 @@ class BaseResource(MethodView):
                         obj_id="?%s" % urlencode(params)))
         return links
 
+    def get_location(self, obj_id, **kwargs):
+        """Generate the location uri for POST 201 response"""
+        # Swap placeholders in url with actual values
+        location = self._url
+        for k, v in kwargs.iteritems():
+            idx = location.find(k)
+            if idx < 0:
+                continue
+            start_idx = location.rfind('/', 0, idx)
+            end_idx = location[idx:].find('/') + idx
+            location = "%s%s%s" % \
+                (location[:start_idx], v, location[end_idx:])
+        return '%s/%s' % (location, obj_id)
+
     @preflight_checks
     def delete(self, **kwargs):
         kwargs['is_instance'] = True
@@ -350,18 +366,7 @@ class BaseResource(MethodView):
             obj_id = current_app.db[self.collection].save(data)
 
             self.post_save(collection=self.collection, data=data)
-            # Swap placeholders in url with actual values
-            location = self._url
-            for k, v in kwargs.iteritems():
-                idx = location.find(k)
-                if idx < 0:
-                    continue
-                start_idx = location.rfind('/', 0, idx)
-                end_idx = location[idx:].find('/') + idx
-                location = "%s%s%s" % \
-                    (location[:start_idx], v, location[end_idx:])
-
-            location = '%s/%s' % (location, obj_id)
+            location = self.get_location(obj_id, **kwargs)
             return self._prep_response(status=201,
                                        headers=[('Location', location)])
         except ApiException, e:
