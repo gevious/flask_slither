@@ -347,7 +347,7 @@ class BaseResource(MethodView):
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
                 return self._prep_response(self.validation.errors, status=400)
-            obj_id = current_app.db[self.collection].insert(data)
+            obj_id = current_app.db[self.collection].save(data)
 
             self.post_save(collection=self.collection, data=data)
             # Swap placeholders in url with actual values

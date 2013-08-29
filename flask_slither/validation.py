@@ -6,9 +6,6 @@ class NoValidation():
     """No validation is done and no errors are returned"""
     errors = {}
 
-    def pre_validation_transform(self, data):
-        return data
-
     def validate(self, data, **kwargs):
         pass
 
@@ -17,7 +14,6 @@ class Validation():
     errors = {}
 
     def validate(self, data, **kwargs):
-        self.errors = {}
         if 'model' not in kwargs:
             self.errors = {'__internal__': "No model defined for validation"}
             return

@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from contextlib import contextmanager
 from flask import Flask, g
 from flask.ext.testing import TestCase
 from flask.ext.slither.authorization import ReadOnlyAuthorization
 from flask.ext.slither.resources import BaseResource
-from flask.ext.slither.signals import request_authenticated, post_create
 from flask.ext.slither import register_api
 from pymongo import MongoClient
 from werkzeug.routing import BaseConverter
