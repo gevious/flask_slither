@@ -306,10 +306,11 @@ class BaseResource(MethodView):
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
         except ApiException, e:
+            current_app.logger.warning("Api Exception: %s" % e.message)
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
-                return self._prep_response(status=409)
+                return self._prep_response(e.message, status=409)
 
     @preflight_checks
     def get(self, **kwargs):
@@ -323,13 +324,14 @@ class BaseResource(MethodView):
             try:
                 response = self._get_instance(**kwargs)
             except ApiException, e:
+                current_app.logger.warning("Api Exception: %s" % e.message)
                 if isinstance(e.message, dict):
                     return self._prep_response(
                         e.message['msg'], status=e.message['status'])
                 if e.message.find('No record') == 0:
                     return self._prep_response(status=404)
                 else:
-                    return self._prep_response(status=409)
+                    return self._prep_response(e.message, status=409)
         else:
             response = self._get_collection(**kwargs)
 
@@ -353,10 +355,11 @@ class BaseResource(MethodView):
                            change=change)
             return self._prep_response(status=204)
         except ApiException, e:
+            current_app.logger.warning("Api Exception: %s" % e.message)
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
-                return self._prep_response(status=409)
+                return self._prep_response(e.message, status=409)
         except Exception, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
@@ -405,10 +408,11 @@ class BaseResource(MethodView):
             self.post_save(collection=self.collection, data=new_obj)
             return self._prep_response(status=204)
         except ApiException, e:
+            current_app.logger.warning("Api Exception: %s" % e.message)
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
-                return self._prep_response(status=409)
+                return self._prep_response(e.message, status=409)
         except Exception, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
