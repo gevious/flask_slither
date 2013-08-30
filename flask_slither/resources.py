@@ -43,6 +43,17 @@ def preflight_checks(f):
         if self.collection is None:
             return self._prep_response("No collection defined",
                                        status=424)
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            # enforcing collection as root of payload
+            g.data = {} if request.data.strip() == "" else \
+                request.json.copy()
+            if self.collection not in g.data:
+                if self.enforce_payload_collection:
+                    return self._prep_response("No collection in payload",
+                                               status=400)
+            else:
+                g.data = g.data[self.collection]
+
         return f(self, *args, **kwargs)
     return decorator
 
@@ -74,6 +85,11 @@ class BaseResource(MethodView):
     """ A list of HTTP methods that are open for use. Any method not on this
     list will return a 405 if accessed."""
     allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+
+    """By default all POST and PUT methods must have their payloads wrapped
+       in the collection name. Setting this to `False` will prevent the
+       default behaviour"""
+    enforce_payload_collection = True
 
     def __init__(self, app=None):
         if app is not None:
@@ -324,10 +340,7 @@ class BaseResource(MethodView):
         try:
             data = self._get_instance(**kwargs)[self.collection]
             current_app.logger.debug("Obj pre change: %s" % data)
-            change = {} if request.data.strip() == "" else \
-                request.json.copy()[self.collection]
-
-            change = self.pre_validation_transform(change, **kwargs)
+            change = self.pre_validation_transform(g.data, **kwargs)
             final = data.copy()
             final.update(change)
             self.validation.validate(final, model=self.model,
@@ -350,15 +363,8 @@ class BaseResource(MethodView):
 
     @preflight_checks
     def post(self, **kwargs):
-        data = {} if request.data.strip() == "" else \
-            request.json.copy()
-        if self.collection not in data:
-            return self._prep_response("No collection in payload",
-                                       status=400)
-        data = data[self.collection]
-
         try:
-            data = self.pre_validation_transform(data, **kwargs)
+            data = self.pre_validation_transform(g.data, **kwargs)
             self.validation.validate(data, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
@@ -380,10 +386,8 @@ class BaseResource(MethodView):
     def put(self, **kwargs):
         try:
             obj = self._get_instance(**kwargs)[self.collection]
-            new_obj = {} if request.data.strip() == "" else \
-                request.json.copy()[self.collection]
 
-            new_obj = self.pre_validation_transform(new_obj, **kwargs)
+            new_obj = self.pre_validation_transform(g.data, **kwargs)
             self.validation.validate(new_obj, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
