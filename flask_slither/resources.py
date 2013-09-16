@@ -11,11 +11,7 @@ from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
-try:
-    from urllib import urlencode
-except:
-    # python3
-    from urllib.parse import urlencode
+from urllib import urlencode
 from functools import wraps
 
 import pymongo
@@ -47,6 +43,17 @@ def preflight_checks(f):
         if self.collection is None:
             return self._prep_response("No collection defined",
                                        status=424)
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            # enforcing collection as root of payload
+            g.data = {} if request.data.strip() == "" else \
+                json_util.loads(request.data)
+            if self.collection not in g.data:
+                if self.enforce_payload_collection:
+                    return self._prep_response("No collection in payload",
+                                               status=400)
+            else:
+                g.data = g.data[self.collection]
+
         return f(self, *args, **kwargs)
     return decorator
 
@@ -78,6 +85,11 @@ class BaseResource(MethodView):
     """ A list of HTTP methods that are open for use. Any method not on this
     list will return a 405 if accessed."""
     allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+
+    """By default all POST and PUT methods must have their payloads wrapped
+       in the collection name. Setting this to `False` will prevent the
+       default behaviour"""
+    enforce_payload_collection = True
 
     def __init__(self, app=None):
         if app is not None:
@@ -293,7 +305,7 @@ class BaseResource(MethodView):
         try:
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
-        except ApiException as e:
+        except ApiException, e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
@@ -310,7 +322,7 @@ class BaseResource(MethodView):
         if 'is_instance' in kwargs:
             try:
                 response = self._get_instance(**kwargs)
-            except ApiException as e:
+            except ApiException, e:
                 if isinstance(e.message, dict):
                     return self._prep_response(
                         e.message['msg'], status=e.message['status'])
@@ -328,10 +340,7 @@ class BaseResource(MethodView):
         try:
             data = self._get_instance(**kwargs)[self.collection]
             current_app.logger.debug("Obj pre change: %s" % data)
-            change = {} if request.data.strip() == "" else \
-                json_util.loads(request.data)[self.collection]
-
-            change = self.pre_validation_transform(change, **kwargs)
+            change = self.pre_validation_transform(g.data, **kwargs)
             final = data.copy()
             final.update(change)
             self.validation.validate(final, model=self.model,
@@ -343,26 +352,19 @@ class BaseResource(MethodView):
             self.post_save(collection=self.collection, data=data,
                            change=change)
             return self._prep_response(status=204)
-        except ApiException as e:
+        except ApiException, e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
                 return self._prep_response(status=409)
-        except Exception as e:
+        except Exception, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
     @preflight_checks
     def post(self, **kwargs):
-        data = {} if request.data.strip() == "" else \
-            json_util.loads(request.data)
-        if self.collection not in data:
-            return self._prep_response("No collection in payload",
-                                       status=400)
-        data = data[self.collection]
-
         try:
-            data = self.pre_validation_transform(data, **kwargs)
+            data = self.pre_validation_transform(g.data, **kwargs)
             self.validation.validate(data, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
@@ -376,7 +378,7 @@ class BaseResource(MethodView):
                 return self._prep_response()
             return self._prep_response(status=201,
                                        headers=[('Location', location)])
-        except ApiException as e:
+        except ApiException, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
@@ -384,10 +386,8 @@ class BaseResource(MethodView):
     def put(self, **kwargs):
         try:
             obj = self._get_instance(**kwargs)[self.collection]
-            new_obj = {} if request.data.strip() == "" else \
-                json_util.loads(request.data)[self.collection]
 
-            new_obj = self.pre_validation_transform(new_obj, **kwargs)
+            new_obj = self.pre_validation_transform(g.data, **kwargs)
             self.validation.validate(new_obj, model=self.model,
                                      collection=self.collection)
             if len(self.validation.errors) > 0:
@@ -404,12 +404,12 @@ class BaseResource(MethodView):
             new_obj['_id'] = obj['_id']
             self.post_save(collection=self.collection, data=new_obj)
             return self._prep_response(status=204)
-        except ApiException as e:
+        except ApiException, e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
                 return self._prep_response(status=409)
-        except Exception as e:
+        except Exception, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
