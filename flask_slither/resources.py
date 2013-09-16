@@ -11,7 +11,11 @@ from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
-from urllib import urlencode
+try:
+    from urllib import urlencode
+except:
+    # python3
+    from urllib.parse import urlencode
 from functools import wraps
 
 import pymongo
@@ -289,7 +293,7 @@ class BaseResource(MethodView):
         try:
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
@@ -306,7 +310,7 @@ class BaseResource(MethodView):
         if 'is_instance' in kwargs:
             try:
                 response = self._get_instance(**kwargs)
-            except ApiException, e:
+            except ApiException as e:
                 if isinstance(e.message, dict):
                     return self._prep_response(
                         e.message['msg'], status=e.message['status'])
@@ -339,12 +343,12 @@ class BaseResource(MethodView):
             self.post_save(collection=self.collection, data=data,
                            change=change)
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
                 return self._prep_response(status=409)
-        except Exception, e:
+        except Exception as e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
@@ -372,7 +376,7 @@ class BaseResource(MethodView):
                 return self._prep_response()
             return self._prep_response(status=201,
                                        headers=[('Location', location)])
-        except ApiException, e:
+        except ApiException as e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
@@ -400,12 +404,12 @@ class BaseResource(MethodView):
             new_obj['_id'] = obj['_id']
             self.post_save(collection=self.collection, data=new_obj)
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             if e.message.find('No record') == 0:
                 return self._prep_response(status=404)
             else:
                 return self._prep_response(status=409)
-        except Exception, e:
+        except Exception as e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
