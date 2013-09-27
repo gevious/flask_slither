@@ -67,7 +67,6 @@ class BasicTestCase(TestCase):
 
 
 class AdvancedFunctionality(BasicTestCase):
-
     def test_get_instance_by_id(self):
         """ Ensure only the instance is returned for a wide access_limit range.
             Fixes #16"""
@@ -246,23 +245,14 @@ class DefaultFunctionality(BasicTestCase):
 
 
 class NonstandardCollectionName(BasicTestCase):
-    def create_app(self):
-        app = Flask(__name__)
-        app.url_map.converters['regex'] = RegexConverter
-
-        app.config['DB_HOST'] = 'localhost'
-        app.config['DB_PORT'] = 27017
-        app.config['DB_NAME'] = 'test_slither'
-        app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
-        app.db = app.client[app.config['DB_NAME']]
-
+    def setUp(self):
+        super(NonstandardCollectionName, self).setUp()
         self.cn = 'nonstandard'
 
         class R(Resource):
             root_key = self.cn
 
-        register_api(app, R, url="nstest")
-        return app
+        register_api(self.app, R, url="nstest")
 
     def test_delete(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
