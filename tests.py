@@ -253,14 +253,14 @@ class NonstandardCollectionName(BasicTestCase):
         class R(Resource):
             root_key = self.cn
 
-        register_api(self.app, R, url="test")
+        register_api(self.app, R, url="nstest")
 
     def test_delete(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         count = self.app.db[collection_name].count()
         self.assertFalse(self.app.db[collection_name].find_one(
             {'_id': obj_id}) is None)
-        response = self.client.delete("/test/%s" % str(obj_id))
+        response = self.client.delete("/nstest/%s" % str(obj_id))
         self.assertEquals(response.status_code, 204)
         self.assertEquals(self.app.db[collection_name].count(), count - 1)
         self.assertTrue(self.app.db[collection_name].find_one(
@@ -268,7 +268,7 @@ class NonstandardCollectionName(BasicTestCase):
 
     def test_get_instance(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/nstest/%s' % str(obj_id))
         self.assertEquals(response.status_code, 200)
         expected_data = {self.cn: {
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
@@ -276,14 +276,14 @@ class NonstandardCollectionName(BasicTestCase):
         self.assertEquals(response.json, expected_data)
 
     def test_get_list(self):
-        response = self.client.get('/test')
+        response = self.client.get('/nstest')
         self.assertEquals(response.status_code, 200)
         self.assertEquals(response.json.keys(), [self.cn])
 
     def test_patch(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {self.cn: {'name': "patched"}}
-        response = self.client.patch('/test/%s' % str(obj['_id']),
+        response = self.client.patch('/nstest/%s' % str(obj['_id']),
                                      data=json.dumps(data),
                                      content_type="application/json")
         self.assertEquals(response.status_code, 204)
@@ -291,14 +291,14 @@ class NonstandardCollectionName(BasicTestCase):
     def test_post(self):
         data = {self.cn: {
             'name': "post", "description": "success is good"}}
-        response = self.client.post('/test', data=json.dumps(data),
+        response = self.client.post('/nstest', data=json.dumps(data),
                                     content_type="application/json")
         self.assertEquals(response.status_code, 201)
 
     def test_put(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {self.cn: {'name': "updated", 'extra': "winner"}}
-        response = self.client.put('/test/%s' % str(obj['_id']),
+        response = self.client.put('/nstest/%s' % str(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
         self.assertEquals(response.status_code, 204)
