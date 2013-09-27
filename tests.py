@@ -38,7 +38,7 @@ class ReadOnlyAuthResource(BaseResource):
 
 
 class BasicTestCase(TestCase):
-    def create_app(self):
+    def create_app(self, **kwargs):
         app = Flask(__name__)
         app.url_map.converters['regex'] = RegexConverter
 
@@ -48,8 +48,10 @@ class BasicTestCase(TestCase):
         app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
         app.db = app.client[app.config['DB_NAME']]
 
-        # register test resource
-        register_api(app, Resource, url="test")
+        print kwargs
+        if not kwargs.get('ignore_resource', False):
+            # register test resource
+            register_api(app, Resource, url="test")
         return app
 
     def setUp(self):
@@ -67,6 +69,10 @@ class BasicTestCase(TestCase):
 
 
 class AdvancedFunctionality(BasicTestCase):
+    def create_app(self, **kwargs):
+        return super(AdvancedFunctionality, self) \
+            .create_app(ignore_resource=True)
+
     def test_get_instance_by_id(self):
         """ Ensure only the instance is returned for a wide access_limit range.
             Fixes #16"""
@@ -80,7 +86,13 @@ class AdvancedFunctionality(BasicTestCase):
 
         register_api(self.app, R, url="test")
 
-        obj_id = self.app.db[collection_name].find_one()['_id']
+        obj_id = self.app.db[collection_name].find_one(
+            {'name': "Record 1"})['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 200)
+
+        obj_id = self.app.db[collection_name].find_one(
+            {'name': "Record 0"})['_id']
         response = self.client.get('/test/%s' % str(obj_id))
         self.assertEquals(response.status_code, 404)
 
@@ -245,6 +257,10 @@ class DefaultFunctionality(BasicTestCase):
 
 
 class NonstandardCollectionName(BasicTestCase):
+    def create_app(self, **kwargs):
+        return super(NonstandardCollectionName, self) \
+            .create_app(ignore_resource=True)
+
     def setUp(self):
         super(NonstandardCollectionName, self).setUp()
         self.cn = 'nonstandard'
