@@ -66,7 +66,7 @@ class BasicTestCase(TestCase):
         self.app.db['users'].drop()
 
 
-class SimpleTestCase(BasicTestCase):
+class DefaultResourceFunctionality(BasicTestCase):
     def test_delete_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         count = self.app.db[collection_name].count()
@@ -120,6 +120,8 @@ class SimpleTestCase(BasicTestCase):
         expected_data = {collection_name: {
             '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
             'extra': "Extra 0"}}
+        print 'here'
+        print response.json
         self.assertEquals(response.json, expected_data)
 
     def test_get_instance_by_id_missing(self):
@@ -223,6 +225,63 @@ class SimpleTestCase(BasicTestCase):
         Resource.allowed_methods = orig_allowed
 
 
+class NonstandardCollectionName(BasicTestCase):
+
+    def setUp(self):
+        super(NonstandardCollectionName, self).setUp()
+        self.cn = 'nonstandard'
+        Resource.root_key = self.cn
+        register_api(self.app, Resource, url="test")
+
+    def test_delete(self):
+        obj_id = self.app.db[collection_name].find_one()['_id']
+        count = self.app.db[collection_name].count()
+        self.assertFalse(self.app.db[collection_name].find_one(
+            {'_id': obj_id}) is None)
+        response = self.client.delete("/test/%s" % str(obj_id))
+        self.assertEquals(response.status_code, 204)
+        self.assertEquals(self.app.db[collection_name].count(), count - 1)
+        self.assertTrue(self.app.db[collection_name].find_one(
+            {'_id': obj_id}) is None)
+
+    def test_get_instance(self):
+        obj_id = self.app.db[collection_name].find_one()['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 200)
+        expected_data = {self.cn: {
+            '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
+            'extra': "Extra 0"}}
+        self.assertEquals(response.json, expected_data)
+
+    def test_get_list(self):
+        response = self.client.get('/test')
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.json.keys(), [self.cn])
+
+    def test_patch(self):
+        obj = self.app.db[collection_name].find_one({'name': "Record 4"})
+        data = {self.cn: {'name': "patched"}}
+        response = self.client.patch('/test/%s' % str(obj['_id']),
+                                     data=json.dumps(data),
+                                     content_type="application/json")
+        self.assertEquals(response.status_code, 204)
+
+    def test_post(self):
+        data = {self.cn: {
+            'name': "post", "description": "success is good"}}
+        response = self.client.post('/test', data=json.dumps(data),
+                                    content_type="application/json")
+        self.assertEquals(response.status_code, 201)
+
+    def test_put(self):
+        obj = self.app.db[collection_name].find_one({'name': "Record 4"})
+        data = {self.cn: {'name': "updated", 'extra': "winner"}}
+        response = self.client.put('/test/%s' % str(obj['_id']),
+                                   data=json.dumps(data),
+                                   content_type="application/json")
+        self.assertEquals(response.status_code, 204)
+
+
 class UrlsTestCase(TestCase):
     """ Duplicated some of the simple tests, but with a different url. This
         is for testing embedded url params (eg a site name) in the path"""
@@ -251,6 +310,7 @@ class UrlsTestCase(TestCase):
                 'access_key': "super", 'secret_key': "duper"}})
         u_id = str(self.app.db['users'].find_one()['_id'])
         self.url = "/%s/test" % u_id
+        Resource.root_key = None  # revert to avoid test bleedover
 
     def tearDown(self):
         self.app.db[collection_name].drop()

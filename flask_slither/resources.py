@@ -47,12 +47,12 @@ def preflight_checks(f):
             # enforcing collection as root of payload
             g.data = {} if request.data.strip() == "" else \
                 json_util.loads(request.data)
-            if self.collection not in g.data:
+            if self._get_root() not in g.data:
                 if self.enforce_payload_collection:
                     return self._prep_response("No collection in payload",
                                                status=400)
             else:
-                g.data = g.data[self.collection]
+                g.data = g.data[self._get_root()]
 
         return f(self, *args, **kwargs)
     return decorator
@@ -91,6 +91,10 @@ class BaseResource(MethodView):
        default behaviour"""
     enforce_payload_collection = True
 
+    """By default the json base key is the collection name. However by changing
+       this value, it will become the root key of every request"""
+    root_key = collection
+
     def __init__(self, app=None):
         if app is not None:
             self.app = app
@@ -105,6 +109,14 @@ class BaseResource(MethodView):
             app.teardown_appcontext(self.teardown)
         else:
             app.teardown_request(self.teardown)
+
+    def _get_root(self):
+        """ Returns the expected json root in the payload"""
+        print self.root_key
+        print self.collection
+        if getattr(self, 'root_key') and self.root_key is not None:
+            return self.root_key
+        return self.collection
 
     def _link(self, rel, **kwargs):
         title = kwargs.get('title', self.collection[:-1].title())
@@ -189,7 +201,7 @@ class BaseResource(MethodView):
         pass
 
     def delete_query(self, **kwargs):
-        obj = self._get_instance(**kwargs)[self.collection]
+        obj = self._get_instance(**kwargs)[self._get_root()]
         return obj['_id']
 
     def _get_projection(self):
@@ -223,7 +235,7 @@ class BaseResource(MethodView):
         except ValueError:
             abort(400)
 
-        return {self.collection: documents}
+        return {self._get_root(): documents}
 
     def _get_instance(self, **kwargs):
         current_app.logger.debug("GETting instance")
@@ -244,7 +256,7 @@ class BaseResource(MethodView):
         #TODO: add field limits into query so we can use indexes if available
         doc = current_app.db[self.collection].find_one(
             query, self._get_projection())
-        return {self.collection: doc}
+        return {self._get_root(): doc}
 
     def get_links(self, response, args, **kwargs):
         """ Adding generic links to the end of the queryset to satisfy the
@@ -338,7 +350,7 @@ class BaseResource(MethodView):
     @preflight_checks
     def patch(self, **kwargs):
         try:
-            data = self._get_instance(**kwargs)[self.collection]
+            data = self._get_instance(**kwargs)[self._get_root()]
             current_app.logger.debug("Obj pre change: %s" % data)
             change = self.pre_validation_transform(g.data, **kwargs)
             final = data.copy()
@@ -385,7 +397,7 @@ class BaseResource(MethodView):
     @preflight_checks
     def put(self, **kwargs):
         try:
-            obj = self._get_instance(**kwargs)[self.collection]
+            obj = self._get_instance(**kwargs)[self._get_root()]
 
             new_obj = self.pre_validation_transform(g.data, **kwargs)
             self.validation.validate(new_obj, model=self.model,
