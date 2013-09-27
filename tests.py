@@ -66,7 +66,27 @@ class BasicTestCase(TestCase):
         self.app.db['users'].drop()
 
 
-class DefaultResourceFunctionality(BasicTestCase):
+class AdvancedFunctionality(BasicTestCase):
+
+    def test_get_instance_by_id(self):
+        """ Ensure only the instance is returned for a wide access_limit range.
+            Fixes #16"""
+
+        rid = self.app.db[collection_name].find_one(
+            {'name': "Record 1"})['_id']
+
+        class R(Resource):
+            def access_limits(self, **kwargs):
+                return {'_id': rid}
+
+        register_api(self.app, R, url="test")
+
+        obj_id = self.app.db[collection_name].find_one()['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 404)
+
+
+class DefaultFunctionality(BasicTestCase):
     def test_delete_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         count = self.app.db[collection_name].count()
@@ -226,12 +246,14 @@ class DefaultResourceFunctionality(BasicTestCase):
 
 
 class NonstandardCollectionName(BasicTestCase):
-
     def setUp(self):
         super(NonstandardCollectionName, self).setUp()
         self.cn = 'nonstandard'
-        Resource.root_key = self.cn
-        register_api(self.app, Resource, url="test")
+
+        class R(Resource):
+            root_key = self.cn
+
+        register_api(self.app, R, url="test")
 
     def test_delete(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
@@ -310,7 +332,6 @@ class UrlsTestCase(TestCase):
                 'access_key': "super", 'secret_key': "duper"}})
         u_id = str(self.app.db['users'].find_one()['_id'])
         self.url = "/%s/test" % u_id
-        Resource.root_key = None  # revert to avoid test bleedover
 
     def tearDown(self):
         self.app.db[collection_name].drop()

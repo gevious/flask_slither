@@ -112,8 +112,6 @@ class BaseResource(MethodView):
 
     def _get_root(self):
         """ Returns the expected json root in the payload"""
-        print self.root_key
-        print self.collection
         if getattr(self, 'root_key') and self.root_key is not None:
             return self.root_key
         return self.collection
@@ -240,12 +238,20 @@ class BaseResource(MethodView):
     def _get_instance(self, **kwargs):
         current_app.logger.debug("GETting instance")
 
+        al = self.access_limits(**kwargs)
         if 'obj_id' in kwargs:
             query = {'_id': ObjectId(kwargs['obj_id'])}
         else:
             query = {self.lookup_field: kwargs['_lookup']}
 
-        query.update(self.access_limits(**kwargs))
+        if query.keys()[0] in al.keys():
+            # return 404 if instance not in access_limits
+            k = query.keys()[0]
+            vals = al[k] if isinstance(al[k], list) else [al[k]]
+            if query[k] not in vals:
+                    query[k] = False  # Ensure no matching element
+        else:
+            query.update(self.access_limits(**kwargs))
 
         count = current_app.db[self.collection].find(query).count()
         if count < 1:
