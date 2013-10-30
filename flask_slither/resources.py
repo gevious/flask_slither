@@ -144,7 +144,7 @@ class BaseResource(MethodView):
     ## Preparing response into proper mime
     def _prep_response(self, dct=None, last_modified=None, etag=None,
                        status=200, **kwargs):
-        if hasattr(self, 'redirect'):
+        if str(status)[0] == '2' and hasattr(self, 'redirect'):
             return redirect(self.redirect)
         # TODO: handle more mime types
         mime = "application/json"
