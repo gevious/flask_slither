@@ -9,53 +9,15 @@ from flask import current_app, abort, request, make_response, g, redirect
 from flask.views import MethodView
 from flask.ext.slither.authentication import NoAuthentication
 from flask.ext.slither.authorization import NoAuthorization
+from flask.ext.slither.decorators import preflight_checks, crossdomain
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
 from urllib import urlencode
-from functools import wraps
+from urlparse import urlparse
 
 import pymongo
 import re
 import time
-
-
-def preflight_checks(f):
-    """ This decorator does any checks before the request is allowed through.
-    This includes authentication, authorization, throttling and caching."""
-    @wraps(f)
-    def decorator(self, *args, **kwargs):
-        if request.method not in self.allowed_methods:
-            return self._prep_response("Method Unavailable", status=405)
-
-        current_app.logger.debug("%s request received" %
-                                 request.method.upper())
-        if not self.authentication.is_authenticated():
-            msg = g.authentication_error \
-                if hasattr(g, 'authentication_error') else None
-            current_app.logger.warning("Unauthenticated request")
-            return self._prep_response(msg, status=401)
-        if not self.authorization.is_authorized(
-                model=self.model, collection=self.collection):
-            current_app.logger.warning("Unauthorized request")
-            msg = g.authorization_error \
-                if hasattr(g, 'authorization_error') else None
-            return self._prep_response(msg, status=403)
-        if self.collection is None:
-            return self._prep_response("No collection defined",
-                                       status=424)
-        if request.method in ['POST', 'PUT', 'PATCH']:
-            # enforcing collection as root of payload
-            g.data = {} if request.data.strip() == "" else \
-                json_util.loads(request.data)
-            if self._get_root() not in g.data:
-                if self.enforce_payload_collection:
-                    return self._prep_response("No collection in payload",
-                                               status=400)
-            else:
-                g.data = g.data[self._get_root()]
-
-        return f(self, *args, **kwargs)
-    return decorator
 
 
 class BaseResource(MethodView):
@@ -94,6 +56,27 @@ class BaseResource(MethodView):
     """By default the json base key is the collection name. However by changing
        this value, it will become the root key of every request"""
     root_key = collection
+
+    """Maximum time a CORS requests can live before having to re-establish
+       their validity (in seconds)"""
+    cors_max_age = 21600
+
+    """Methods allowed by CORS requests. The default allows all methonds.
+       Note: CORS is only enabled if the `OPTIONS` method is allowed in
+       `allowed_methods`. It is disabled by default."""
+    cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+
+    """A list of origins from which the API may accept requests. If it is None,
+       then all origins (except blacklisted ones) are accepted"""
+    cors_allowed = None
+
+    """Any request from a blacklisted origin won't be allowed to connect to the
+       API. This takes precidence over the allowed origins"""
+    cors_blacklist = []
+
+    """Specify particular headers that are allowed in CORS requests. Defaults
+       to all."""
+    cors_headers = None
 
     def __init__(self, app=None):
         if app is not None:
@@ -316,6 +299,7 @@ class BaseResource(MethodView):
                 (location[:start_idx], v, location[end_idx:])
         return '%s/%s' % (location, obj_id)
 
+    @crossdomain
     @preflight_checks
     def delete(self, **kwargs):
         kwargs['is_instance'] = True
@@ -329,6 +313,7 @@ class BaseResource(MethodView):
             else:
                 return self._prep_response(status=409)
 
+    @crossdomain
     @preflight_checks
     def get(self, **kwargs):
         """ GET request entry point. We split the request into 2 paths:
@@ -353,6 +338,7 @@ class BaseResource(MethodView):
 
         return self._prep_response(response)
 
+    @crossdomain
     @preflight_checks
     def patch(self, **kwargs):
         try:
@@ -379,6 +365,7 @@ class BaseResource(MethodView):
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
+    @crossdomain
     @preflight_checks
     def post(self, **kwargs):
         try:
@@ -400,6 +387,7 @@ class BaseResource(MethodView):
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
+    @crossdomain
     @preflight_checks
     def put(self, **kwargs):
         try:
@@ -431,7 +419,11 @@ class BaseResource(MethodView):
             current_app.logger.warning("Validation Failed: %s" % e.message)
             return self._prep_response(e.message, status=400)
 
+    @crossdomain
     def options(self, **kwargs):
-        """This method has been left open for fine grain control in the
-        application (for security reasons)."""
-        return NotImplementedError()
+        """This method has been implemented as per the CORS spec, however is
+        not accessible by default. Include `OPTIONS` in the `allowed_methods`
+        instance variable to allow CORS requests."""
+        if 'OPTIONS' not in self.allowed_methods:
+            return self._prep_response("CORS request rejected", status=405)
+        return self._prep_response()
