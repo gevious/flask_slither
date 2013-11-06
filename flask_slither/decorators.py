@@ -38,7 +38,6 @@ def crossdomain(f):
             (request.headers.environ['wsgi.url_scheme'], hostname)
 
         # Request header checks
-        print request.headers
         if 'access-control-request-headers' in request.headers:
             if self.cors_headers is None:
                 allowed_headers = \

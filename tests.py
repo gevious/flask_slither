@@ -49,7 +49,6 @@ class BasicTestCase(TestCase):
         app.client = MongoClient(app.config['DB_HOST'], app.config['DB_PORT'])
         app.db = app.client[app.config['DB_NAME']]
 
-        print kwargs
         if not kwargs.get('ignore_resource', False):
             # register test resource
             register_api(app, Resource, url="test")
@@ -507,7 +506,6 @@ class CORS(TestCase):
             }
             for k, v in expected_headers.iteritems():
                 self.assertEquals(r.headers.get(k), v, "Bad header: %s" % k)
-            print r.headers
             self.assertFalse('access-control-allow-headers' in r.headers)
 
     def test_check_rq_header(self):

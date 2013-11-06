@@ -13,7 +13,6 @@ from flask.ext.slither.decorators import preflight_checks, crossdomain
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
 from urllib import urlencode
-from urlparse import urlparse
 
 import pymongo
 import re
