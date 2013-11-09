@@ -56,6 +56,9 @@ class BaseResource(MethodView):
        this value, it will become the root key of every request"""
     root_key = collection
 
+    """Allow cors requests"""
+    cors_enabled = False
+
     """Maximum time a CORS requests can live before having to re-establish
        their validity (in seconds)"""
     cors_max_age = 21600
@@ -423,6 +426,6 @@ class BaseResource(MethodView):
         """This method has been implemented as per the CORS spec, however is
         not accessible by default. Include `OPTIONS` in the `allowed_methods`
         instance variable to allow CORS requests."""
-        if 'OPTIONS' not in self.allowed_methods:
+        if not self.cors_enabled:
             return self._prep_response("CORS request rejected", status=405)
         return self._prep_response()

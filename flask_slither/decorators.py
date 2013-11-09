@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from bson import json_util
-from datetime import timedelta
-from flask import make_response, request, current_app, g
-from functools import update_wrapper
+from flask import request, current_app
 from functools import wraps
 from urlparse import urlparse
 
@@ -16,8 +14,7 @@ def crossdomain(f):
        doesn't include the 'OPTIONS' method. """
     @wraps(f)
     def decorator(self, *args, **kwargs):
-        if request.method == 'OPTIONS' and \
-                'OPTIONS' not in self.allowed_methods:
+        if not self.cors_enabled:
             return self._prep_response("CORS request rejected", status=405)
         resp = f(self, *args, **kwargs)
 
