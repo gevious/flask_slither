@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from bson import json_util
-from flask import request, current_app
+from flask import request, current_app, g
 from functools import wraps
 from urlparse import urlparse
 

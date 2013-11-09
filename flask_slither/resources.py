@@ -383,7 +383,11 @@ class BaseResource(MethodView):
             location = self.get_location(obj_id, **kwargs)
             if is_update:
                 return self._prep_response()
-            return self._prep_response(status=201,
+
+            current_app.logger.warning("Formatting return payload")
+            data['_id'] = obj_id
+            data = {self._get_root(): data}
+            return self._prep_response(data, status=201,
                                        headers=[('Location', location)])
         except ApiException, e:
             current_app.logger.warning("Validation Failed: %s" % e.message)
@@ -424,8 +428,7 @@ class BaseResource(MethodView):
     @crossdomain
     def options(self, **kwargs):
         """This method has been implemented as per the CORS spec, however is
-        not accessible by default. Include `OPTIONS` in the `allowed_methods`
-        instance variable to allow CORS requests."""
-        if not self.cors_enabled:
-            return self._prep_response("CORS request rejected", status=405)
-        return self._prep_response()
+        not accessible by default. To included it make `cors_enabled` = True"""
+        if self.cors_enabled:
+            return self._prep_response()
+        return self._prep_response("CORS request rejected", status=405)
