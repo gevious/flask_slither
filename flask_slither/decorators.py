@@ -14,7 +14,8 @@ def crossdomain(f):
        doesn't include the 'OPTIONS' method. """
     @wraps(f)
     def decorator(self, *args, **kwargs):
-        if not self.cors_enabled:
+        # TODO: if a non-cors request has the origin header, this will fail
+        if not self.cors_enabled and 'origin' in request.headers:
             return self._prep_response("CORS request rejected", status=405)
         resp = f(self, *args, **kwargs)
 

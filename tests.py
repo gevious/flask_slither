@@ -456,7 +456,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
 
 class CorsResource(BaseResource):
     collection = collection_name
-    allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS']
+    cors_enabled = True
 
 
 class CORS(TestCase):
