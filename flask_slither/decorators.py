@@ -60,6 +60,9 @@ def preflight_checks(f):
     def decorator(self, *args, **kwargs):
         if request.method not in self.allowed_methods:
             return self._prep_response("Method Unavailable", status=405)
+        if self.collection is None:
+            return self._prep_response("No collection defined",
+                                       status=424)
 
         current_app.logger.debug("%s request received" %
                                  request.method.upper())
@@ -74,19 +77,16 @@ def preflight_checks(f):
             msg = g.authorization_error \
                 if hasattr(g, 'authorization_error') else None
             return self._prep_response(msg, status=403)
-        if self.collection is None:
-            return self._prep_response("No collection defined",
-                                       status=424)
         if request.method in ['POST', 'PUT', 'PATCH']:
             # enforcing collection as root of payload
-            g.data = {} if request.data.strip() == "" else \
+            g.s_data = {} if request.data.strip() == "" else \
                 json_util.loads(request.data)
-            if self._get_root() not in g.data:
+            if self._get_root() not in g.s_data:
                 if self.enforce_payload_collection:
                     return self._prep_response("No collection in payload",
                                                status=400)
             else:
-                g.data = g.data[self._get_root()]
+                g.s_data = g.s_data[self._get_root()]
 
         return f(self, *args, **kwargs)
     return decorator

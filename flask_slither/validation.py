@@ -6,11 +6,8 @@ class NoValidation():
     """No validation is done and no errors are returned"""
     errors = {}
 
-    def validate(self, data, **kwargs):
-        pass
 
-
-class Validation():
+class Validation(object):
 
     def validate(self, data, **kwargs):
         self.errors = {}
@@ -24,6 +21,15 @@ class Validation():
             self.errors[key] = []
             for error in v:
                 self.errors[key].append(error.message)
+
+    def validate_post(self, data, **kwargs):
+        return self.validate(data, **kwargs)
+
+    def validate_put(self, data, **kwargs):
+        return self.validate(data, **kwargs)
+
+    def validate_patch(self, data, **kwargs):
+        return self.validate(data, **kwargs)
 
 
 #class ValidationDocument(Document):

@@ -56,6 +56,9 @@ class BaseResource(MethodView):
        this value, it will become the root key of every request"""
     root_key = collection
 
+    """Always return payload matching updated instance"""
+    always_return_payload = False
+
     """Allow cors requests"""
     cors_enabled = False
 
@@ -125,6 +128,18 @@ class BaseResource(MethodView):
                     pass
         return dct
 
+    def _exception_handler(self, e):
+        if isinstance(e.message, dict):
+            return self._prep_response(
+                e.message['msg'], status=e.message['status'])
+        if e.message.find('Validation') == 0:
+            return self._prep_response(self.validation.errors, status=400)
+        elif e.message.find('No record') == 0:
+            return self._prep_response(status=404)
+        else:
+            return self._prep_response({'message': e.message},
+                                       status=409)
+
     ######################################
     ## Preparing response into proper mime
     def _prep_response(self, dct=None, last_modified=None, etag=None,
@@ -150,8 +165,18 @@ class BaseResource(MethodView):
         if last_modified:
             resp.headers.add('Last-Modified',
                              self._datetime_parser(last_modified))
-        resp.mimetype = mime
+        if rendered != "":
+            resp.mimetype = mime
         return resp
+
+    def access_limits(self, **kwargs):
+        """ Returns a query which filters the current collection based on
+        authentication access"""
+        return {}
+
+    def delete_query(self, **kwargs):
+        obj = self._get_instance(**kwargs)[self._get_root()]
+        return obj['_id']
 
     def limit_fields(self, **kwargs):
         """A set of fields used mongo query. Fields can be passed in the
@@ -159,95 +184,6 @@ class BaseResource(MethodView):
         you want a subset of fields for an object every time except in
         unusual circumstances, eg {'password': 0}"""
         return {}
-
-    def access_limits(self, **kwargs):
-        """ Returns a query which filters the current collection based on
-        authentication access"""
-        return {}
-
-    def pre_validation_transform(self, data, **kwargs):
-        """ Transform the data by adding or removing fields before the
-        data is validated. Useful for adding server generated fields, such
-        as an author for a post. We assume that all fields are mongo references
-        since mostly they will be"""
-        for k, v in data.iteritems():
-            if isinstance(v, dict) and '$oid' in v:
-                data[k] = ObjectId(v['$oid'])
-        for k, v in kwargs.iteritems():
-            if k == '_lookup':
-                continue
-            data[k] = ObjectId(v)
-        return data
-
-    def post_save(self, **kwargs):
-        """ A hook to run other code that depends on successful post"""
-        pass
-
-    def delete_query(self, **kwargs):
-        obj = self._get_instance(**kwargs)[self._get_root()]
-        return obj['_id']
-
-    def _get_projection(self):
-        projection = {}
-        if '_fields' in request.args:
-            projection = {}
-            for k in request.args.getlist('_fields'):
-                projection[k] = 1
-        final = self.limit_fields()
-        final.update(projection)
-        return None if final == {} else final
-
-    def _get_collection(self, **kwargs):
-        current_app.logger.debug("GETting collection")
-        documents = []
-        try:
-            query = {} if 'where' not in request.args else \
-                json_util.loads(request.args.get('where'))
-            query.update(self.access_limits(**kwargs))
-            cursor = current_app.db[self.collection] \
-                .find(query, self._get_projection())
-            if 'sort' in request.args:
-                sort = []
-                for k, v in json_util.loads(request.args['sort']).iteritems():
-                    sort.append(
-                        (k, pymongo.ASCENDING if v else pymongo.DESCENDING))
-                cursor = cursor.sort(sort)
-            for document in cursor:
-                document['id'] = str(document.pop('_id'))
-                documents.append(document)
-        except ValueError:
-            abort(400)
-
-        return {self._get_root(): documents}
-
-    def _get_instance(self, **kwargs):
-        current_app.logger.debug("GETting instance")
-
-        al = self.access_limits(**kwargs)
-        if 'obj_id' in kwargs:
-            query = {'_id': ObjectId(kwargs['obj_id'])}
-        else:
-            query = {self.lookup_field: kwargs['_lookup']}
-
-        if query.keys()[0] in al.keys():
-            # return 404 if instance not in access_limits
-            k = query.keys()[0]
-            vals = al[k] if isinstance(al[k], list) else [al[k]]
-            if query[k] not in vals:
-                    query[k] = False  # Ensure no matching element
-        else:
-            query.update(self.access_limits(**kwargs))
-
-        count = current_app.db[self.collection].find(query).count()
-        if count < 1:
-            raise ApiException("No record found for this lookup")
-        elif count > 1:
-            raise ApiException("Multiple records found for this lookup")
-
-        #TODO: add field limits into query so we can use indexes if available
-        doc = current_app.db[self.collection].find_one(
-            query, self._get_projection())
-        return {self._get_root(): doc}
 
     def get_links(self, response, args, **kwargs):
         """ Adding generic links to the end of the queryset to satisfy the
@@ -301,6 +237,97 @@ class BaseResource(MethodView):
                 (location[:start_idx], v, location[end_idx:])
         return '%s/%s' % (location, obj_id)
 
+    def post_save(self, **kwargs):
+        """ A hook to run other code that depends on successful post"""
+        pass
+
+    def pre_validation_transform(self,  **kwargs):
+        """ Transform the data by adding or removing fields before the
+        data is validated. Useful for adding server generated fields, such
+        as an author for a post. We assume that all fields are mongo references
+        since mostly they will be"""
+        data = g.s_data
+#        for k, v in g.s_data.iteritems():
+#            if isinstance(v, dict) and '$oid' in v:
+#                g.s_data[k] = ObjectId(v['$oid'])
+        for k, v in kwargs.iteritems():
+            if k in ['obj_id', '_lookup']:
+                continue
+            data[k] = ObjectId(v)
+        return data
+
+    def transform_payload(self, payload):
+        """Any final payload transformation is done over here"""
+        return payload
+
+    def _get_collection(self, **kwargs):
+        current_app.logger.debug("GETting collection")
+        documents = []
+        try:
+            query = {} if 'where' not in request.args else \
+                json_util.loads(request.args.get('where'))
+            query.update(self.access_limits(**kwargs))
+            cursor = current_app.db[self.collection] \
+                .find(query, self._get_projection())
+            if 'sort' in request.args:
+                sort = []
+                for k, v in json_util.loads(request.args['sort']).iteritems():
+                    sort.append(
+                        (k, pymongo.ASCENDING if v else pymongo.DESCENDING))
+                cursor = cursor.sort(sort)
+            documents = list(cursor)
+        except ValueError:
+            abort(400)
+
+        return {self._get_root(): documents}
+
+    def _get_instance(self, **kwargs):
+        current_app.logger.debug("GETting instance")
+
+        al = self.access_limits(**kwargs)
+        if 'obj_id' in kwargs:
+            query = {'_id': ObjectId(kwargs['obj_id'])}
+        else:
+            query = {self.lookup_field: kwargs['_lookup']}
+
+        if query.keys()[0] in al.keys():
+            # return 404 if instance not in access_limits
+            k = query.keys()[0]
+            vals = al[k] if isinstance(al[k], list) else [al[k]]
+            if query[k] not in vals:
+                    query[k] = False  # Ensure no matching element
+        else:
+            query.update(al)
+
+        count = current_app.db[self.collection].find(query).count()
+        if count < 1:
+            raise ApiException("No record found for this lookup")
+        elif count > 1:
+            raise ApiException("Multiple records found for this lookup")
+        g.s_instance = current_app.db[self.collection] \
+            .find_one(query, self._get_projection())
+        return {self._get_root(): g.s_instance}
+
+    def _get_projection(self):
+        projection = {}
+        if '_fields' in request.args:
+            projection = {}
+            for k in request.args.getlist('_fields'):
+                projection[k] = 1
+        final = self.limit_fields()
+        final.update(projection)
+        return None if final == {} else final
+
+    def _validate(self, change, **kwargs):
+        method = 'validate_%s' % request.method.lower()
+        if hasattr(self.validation, method):
+            getattr(self.validation, method)(
+                change, model=self.model, collection=self.collection, **kwargs)
+        else:
+            current_app.logger.warning("No validation performed")
+        if len(self.validation.errors) > 0:
+            raise ApiException("Validation")
+
     @crossdomain
     @preflight_checks
     def delete(self, **kwargs):
@@ -310,10 +337,7 @@ class BaseResource(MethodView):
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
         except ApiException, e:
-            if e.message.find('No record') == 0:
-                return self._prep_response(status=404)
-            else:
-                return self._prep_response(status=409)
+            return self._exception_handler(e)
 
     @crossdomain
     @preflight_checks
@@ -324,106 +348,84 @@ class BaseResource(MethodView):
         current_app.logger.debug("kwargs: %s" % kwargs)
         if '_lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
-        if 'is_instance' in kwargs:
-            try:
-                response = self._get_instance(**kwargs)
-            except ApiException, e:
-                if isinstance(e.message, dict):
-                    return self._prep_response(
-                        e.message['msg'], status=e.message['status'])
-                if e.message.find('No record') == 0:
-                    return self._prep_response(status=404)
-                else:
-                    return self._prep_response(status=409)
-        else:
-            response = self._get_collection(**kwargs)
+        try:
+            self._validate(None, **kwargs)
+            method = '_get_'
+            method += 'instance' if 'is_instance' in kwargs else 'collection'
+            payload = getattr(self, method)(**kwargs)
+        except ApiException, e:
+            return self._exception_handler(e)
 
-        return self._prep_response(response)
+        return self._prep_response(self.transform_payload(payload))
 
     @crossdomain
     @preflight_checks
     def patch(self, **kwargs):
         try:
-            data = self._get_instance(**kwargs)[self._get_root()]
-            current_app.logger.debug("Obj pre change: %s" % data)
-            change = self.pre_validation_transform(g.data, **kwargs)
-            final = data.copy()
+            self._get_instance(**kwargs)[self._get_root()]
+            current_app.logger.debug("Obj pre change: %s" % g.s_instance)
+            change = self.pre_validation_transform(**kwargs)
+            if g.s_data == {}:
+                return self._prep_response({}, status=204)
+            final = g.s_instance.copy()
             final.update(change)
-            self.validation.validate(final, model=self.model,
-                                     collection=self.collection)
-            if len(self.validation.errors) > 0:
-                return self._prep_response(self.validation.errors, status=400)
+            self._validate(final, **kwargs)
             current_app.db[self.collection].update(
-                {"_id": data['_id']}, {"$set": change})
-            self.post_save(collection=self.collection, data=data,
-                           change=change)
+                {"_id": g.s_instance['_id']}, {"$set": change})
+            self.post_save(collection=self.collection, change=change)
+            if self.always_return_payload:
+                return self._prep_response(g.s_instance, status=200)
             return self._prep_response(status=204)
         except ApiException, e:
-            if e.message.find('No record') == 0:
-                return self._prep_response(status=404)
-            else:
-                return self._prep_response(status=409)
-        except Exception, e:
-            current_app.logger.warning("Validation Failed: %s" % e.message)
-            return self._prep_response(e.message, status=400)
+            return self._exception_handler(e)
 
     @crossdomain
     @preflight_checks
     def post(self, **kwargs):
         try:
-            data = self.pre_validation_transform(g.data, **kwargs)
-            self.validation.validate(data, model=self.model,
-                                     collection=self.collection)
-            if len(self.validation.errors) > 0:
-                return self._prep_response(self.validation.errors, status=400)
-            is_update = '_id' in data
-            obj_id = current_app.db[self.collection].save(data)
+            g.s_instance = self.pre_validation_transform(**kwargs)
+            self._validate(g.s_instance, **kwargs)
+            is_update = '_id' in g.s_instance
+            obj_id = current_app.db[self.collection].save(g.s_instance)
 
-            self.post_save(collection=self.collection, data=data)
+            self.post_save(collection=self.collection)
             location = self.get_location(obj_id, **kwargs)
             if is_update:
                 return self._prep_response()
 
             current_app.logger.warning("Formatting return payload")
-            data['_id'] = obj_id
-            data = {self._get_root(): data}
-            return self._prep_response(data, status=201,
+            g.s_instance['_id'] = obj_id
+            data = {self._get_root(): g.s_instance}
+            if self.always_return_payload:
+                return self._prep_response(data, status=201,
+                                           headers=[('Location', location)])
+            return self._prep_response(status=201,
                                        headers=[('Location', location)])
         except ApiException, e:
-            current_app.logger.warning("Validation Failed: %s" % e.message)
-            return self._prep_response(e.message, status=400)
+            return self._exception_handler(e)
 
     @crossdomain
     @preflight_checks
     def put(self, **kwargs):
         try:
-            obj = self._get_instance(**kwargs)[self._get_root()]
+            self._get_instance(**kwargs)[self._get_root()]
 
-            new_obj = self.pre_validation_transform(g.data, **kwargs)
-            self.validation.validate(new_obj, model=self.model,
-                                     collection=self.collection)
-            if len(self.validation.errors) > 0:
-                return self._prep_response(self.validation.errors, status=400)
-            query = {'$set': new_obj, '$unset': {}}
+            change = self.pre_validation_transform(**kwargs)
+            self._validate(change, **kwargs)
+            query = {'$set': change, '$unset': {}}
 
             # Remove all fields not included in PUT request
-            for k in obj.keys():
-                if k not in new_obj and k != '_id':
+            for k in g.s_instance.keys():
+                if k not in change and k != '_id':
                     query['$unset'][k] = 1
 
             current_app.db[self.collection].update(
-                {"_id": obj['_id']}, query)
-            new_obj['_id'] = obj['_id']
-            self.post_save(collection=self.collection, data=new_obj)
+                {"_id": g.s_instance['_id']}, query)
+            change['_id'] = g.s_instance['_id']
+            self.post_save(change=change)
             return self._prep_response(status=204)
         except ApiException, e:
-            if e.message.find('No record') == 0:
-                return self._prep_response(status=404)
-            else:
-                return self._prep_response(status=409)
-        except Exception, e:
-            current_app.logger.warning("Validation Failed: %s" % e.message)
-            return self._prep_response(e.message, status=400)
+            return self._exception_handler(e)
 
     @crossdomain
     def options(self, **kwargs):
