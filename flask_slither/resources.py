@@ -318,13 +318,15 @@ class BaseResource(MethodView):
         final.update(projection)
         return None if final == {} else final
 
-    def _validate(self, change, **kwargs):
+    def _validate(self, **kwargs):
         method = 'validate_%s' % request.method.lower()
-        if hasattr(self.validation, method):
-            getattr(self.validation, method)(
-                change, model=self.model, collection=self.collection, **kwargs)
-        else:
+        if not hasattr(self.validation, method):
             current_app.logger.warning("No validation performed")
+            return
+
+        getattr(self.validation, method)(
+            model=self.model, collection=self.collection, **kwargs)
+
         if len(self.validation.errors) > 0:
             raise ApiException("Validation")
 
@@ -334,6 +336,7 @@ class BaseResource(MethodView):
         kwargs['is_instance'] = True
 
         try:
+            self._validate(**kwargs)
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             return self._prep_response(status=204)
         except ApiException, e:
@@ -349,7 +352,7 @@ class BaseResource(MethodView):
         if '_lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
         try:
-            self._validate(None, **kwargs)
+            self._validate(**kwargs)
             method = '_get_'
             method += 'instance' if 'is_instance' in kwargs else 'collection'
             payload = getattr(self, method)(**kwargs)
@@ -365,11 +368,11 @@ class BaseResource(MethodView):
             self._get_instance(**kwargs)[self._get_root()]
             current_app.logger.debug("Obj pre change: %s" % g.s_instance)
             change = self.pre_validation_transform(**kwargs)
-            if g.s_data == {}:
+            if change == {}:
                 return self._prep_response({}, status=204)
             final = g.s_instance.copy()
             final.update(change)
-            self._validate(final, **kwargs)
+            self._validate(data=final, **kwargs)
             current_app.db[self.collection].update(
                 {"_id": g.s_instance['_id']}, {"$set": change})
             self.post_save(collection=self.collection, change=change)
@@ -384,7 +387,7 @@ class BaseResource(MethodView):
     def post(self, **kwargs):
         try:
             g.s_instance = self.pre_validation_transform(**kwargs)
-            self._validate(g.s_instance, **kwargs)
+            self._validate(data=g.s_instance, **kwargs)
             is_update = '_id' in g.s_instance
             obj_id = current_app.db[self.collection].save(g.s_instance)
 
@@ -411,7 +414,7 @@ class BaseResource(MethodView):
             self._get_instance(**kwargs)[self._get_root()]
 
             change = self.pre_validation_transform(**kwargs)
-            self._validate(change, **kwargs)
+            self._validate(data=change, **kwargs)
             query = {'$set': change, '$unset': {}}
 
             # Remove all fields not included in PUT request

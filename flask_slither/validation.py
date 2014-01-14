@@ -2,12 +2,13 @@
 #from mongokit.document import Document
 
 
-class NoValidation():
+class NoValidation(object):
     """No validation is done and no errors are returned"""
-    errors = {}
+    def __init__(self, *args, **kwargs):
+        self.errors = {}
 
 
-class Validation(object):
+class Validation(NoValidation):
 
     def validate(self, data, **kwargs):
         self.errors = {}
@@ -22,14 +23,14 @@ class Validation(object):
             for error in v:
                 self.errors[key].append(error.message)
 
-    def validate_post(self, data, **kwargs):
-        return self.validate(data, **kwargs)
+    def validate_post(self, **kwargs):
+        self.validate(**kwargs)
 
-    def validate_put(self, data, **kwargs):
-        return self.validate(data, **kwargs)
+    def validate_put(self, **kwargs):
+        self.validate(**kwargs)
 
-    def validate_patch(self, data, **kwargs):
-        return self.validate(data, **kwargs)
+    def validate_patch(self, **kwargs):
+        self.validate(**kwargs)
 
 
 #class ValidationDocument(Document):
