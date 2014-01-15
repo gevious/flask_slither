@@ -356,10 +356,9 @@ class BaseResource(MethodView):
             method = '_get_'
             method += 'instance' if 'is_instance' in kwargs else 'collection'
             payload = getattr(self, method)(**kwargs)
+            return self._prep_response(self.transform_payload(payload))
         except ApiException, e:
             return self._exception_handler(e)
-
-        return self._prep_response(self.transform_payload(payload))
 
     @crossdomain
     @preflight_checks
@@ -393,12 +392,14 @@ class BaseResource(MethodView):
 
             self.post_save(collection=self.collection)
             location = self.get_location(obj_id, **kwargs)
-            if is_update:
-                return self._prep_response()
 
             current_app.logger.warning("Formatting return payload")
             g.s_instance['_id'] = obj_id
             data = {self._get_root(): g.s_instance}
+            if is_update:
+                d = data if self.always_return_payload else {}
+                return self._prep_response(d)
+
             if self.always_return_payload:
                 return self._prep_response(data, status=201,
                                            headers=[('Location', location)])
