@@ -356,7 +356,10 @@ class BaseResource(MethodView):
             method = '_get_'
             method += 'instance' if 'is_instance' in kwargs else 'collection'
             payload = getattr(self, method)(**kwargs)
-            return self._prep_response(self.transform_payload(payload))
+            payload = self.transform_payload(payload)
+            if getattr(self, 'get_raw_payload', False):
+                return payload
+            return self._prep_response(payload)
         except ApiException, e:
             return self._exception_handler(e)
 
