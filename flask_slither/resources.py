@@ -12,7 +12,6 @@ from flask.ext.slither.authorization import NoAuthorization
 from flask.ext.slither.decorators import preflight_checks, crossdomain
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
-from urllib import urlencode
 
 import pymongo
 import re
@@ -184,44 +183,6 @@ class BaseResource(MethodView):
         you want a subset of fields for an object every time except in
         unusual circumstances, eg {'password': 0}"""
         return {}
-
-    def get_links(self, response, args, **kwargs):
-        """ Adding generic links to the end of the queryset to satisfy the
-        HATEOAS requirement of a RESTful interface """
-        links = []
-        if request.method == "GET":
-            if kwargs.get('is_instance', False):
-                perms = set(['add_user', 'change_user', 'delete_user',
-                             'view_user'])
-
-                add_link = False
-                for group in g.user.get('groups', []):
-                    if len(perms.intersection(
-                            set(group.get('permissions', [])))) < 1:
-                        continue
-                    add_link = True
-                if not add_link and not g.user.get('is_superuser', False):
-                    return links
-                links.append(self._link("collection"))
-            else:
-                params = urlencode(request.args)
-                params = "" if params.strip() == "" else "?%s" % params
-                links.append(self._link("self", obj_id=params))
-                if args['skip'] > 0:
-                    # add previous link
-                    params = args.copy()
-                    params['skip'] = max(0, args['skip'] - args['limit'])
-                    links.append(self._link(
-                        "previous", title="Previous %s" % self.collection,
-                        obj_id="?%s" % urlencode(params)))
-                if len(response[self.collection]) == args['limit']:
-                    # add next link
-                    params = args.copy()
-                    params['skip'] = args['skip'] + args['limit']
-                    links.append(self._link(
-                        "next", title="Next %s" % self.collection,
-                        obj_id="?%s" % urlencode(params)))
-        return links
 
     def get_location(self, obj_id, **kwargs):
         """Generate the location uri for POST 201 response"""

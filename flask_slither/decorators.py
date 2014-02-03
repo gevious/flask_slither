@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from bson.objectid import ObjectId
 from bson import json_util
 from flask import request, current_app, g
 from functools import wraps
@@ -64,15 +65,18 @@ def preflight_checks(f):
             return self._prep_response("No collection defined",
                                        status=424)
 
+        if 'obj_id' in kwargs:
+            kwargs['obj_id'] = ObjectId(kwargs['obj_id'])
+
         current_app.logger.debug("%s request received" %
                                  request.method.upper())
-        if not self.authentication.is_authenticated():
+        if not self.authentication.is_authenticated(**kwargs):
             msg = g.authentication_error \
                 if hasattr(g, 'authentication_error') else None
             current_app.logger.warning("Unauthenticated request")
             return self._prep_response(msg, status=401)
         if not self.authorization.is_authorized(
-                model=self.model, collection=self.collection):
+                model=self.model, collection=self.collection, **kwargs):
             current_app.logger.warning("Unauthorized request")
             msg = g.authorization_error \
                 if hasattr(g, 'authorization_error') else None
