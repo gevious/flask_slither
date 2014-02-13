@@ -202,6 +202,10 @@ class BaseResource(MethodView):
         """ A hook to run other code that depends on successful post"""
         pass
 
+    def post_delete(self, **kwargs):
+        """ A hook to run other code that depends on successful delete"""
+        pass
+
     def pre_validation_transform(self,  **kwargs):
         """ Transform the data by adding or removing fields before the
         data is validated. Useful for adding server generated fields, such
@@ -299,6 +303,7 @@ class BaseResource(MethodView):
         try:
             self._validate(**kwargs)
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
+            self.post_delete(collection=self.collection, **kwargs)
             return self._prep_response(status=204)
         except ApiException, e:
             return self._exception_handler(e)
