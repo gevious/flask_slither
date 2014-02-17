@@ -141,13 +141,13 @@ class BaseResource(MethodView):
 
     ######################################
     ## Preparing response into proper mime
-    def _prep_response(self, dct=None, last_modified=None, etag=None,
+    def _prep_response(self, dct={}, last_modified=None, etag=None,
                        status=200, **kwargs):
         if str(status)[0] == '2' and hasattr(self, 'redirect'):
             return redirect(self.redirect)
         # TODO: handle more mime types
         mime = "application/json"
-        rendered = "" if dct is None else json_util.dumps(dct)
+        rendered = json_util.dumps(dct)
     #    rendered = globals()[render](**dct)
         resp = make_response(rendered, status)
         resp.headers.add('Cache-Control',
