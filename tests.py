@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, g
+from flask import Flask, g, current_app
 from flask.ext.testing import TestCase
 from flask.ext.slither.authorization import ReadOnlyAuthorization
 from flask.ext.slither.resources import BaseResource
@@ -93,6 +93,54 @@ class AdvancedFunctionality(BasicTestCase):
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 0"})['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 404)
+
+    def test_get_collection_with_access_limits(self):
+        """ Ensure only records within the access_limit range are returned
+            Fixes #16"""
+
+        class R(Resource):
+            def access_limits(self, **kwargs):
+                # limit list to Record 0 and Record 1
+                ids = current_app.db[collection_name].find().limit(2)
+                ids = [i['_id'] for i in ids]
+                return {'_id': {'$in': ids}}
+
+        register_api(self.app, R, url="test")
+
+        response = self.client.get('/test')
+        self.assertEquals(response.status_code, 200)
+
+        self.assertEquals(len(response.json['tests']), 2)
+        for i, u in enumerate(response.json['tests']):
+            self.assertEquals(u['name'], "Record %s" % i)
+
+    def test_get_instance_with_access_limits(self):
+        """ Ensure only the instance is returned for a wide access_limit range.
+            Fixes #16"""
+
+        class R(Resource):
+            def access_limits(self, **kwargs):
+                # limit list to Record 0 and Record 1
+                ids = current_app.db[collection_name].find().limit(2)
+                ids = [i['_id'] for i in ids]
+                return {'_id': {'$in': ids}}
+
+        register_api(self.app, R, url="test")
+
+        obj_id = self.app.db[collection_name].find_one(
+            {'name': "Record 0"})['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 200)
+
+        obj_id = self.app.db[collection_name].find_one(
+            {'name': "Record 1"})['_id']
+        response = self.client.get('/test/%s' % str(obj_id))
+        self.assertEquals(response.status_code, 200)
+
+        obj_id = self.app.db[collection_name].find_one(
+            {'name': "Record 2"})['_id']
         response = self.client.get('/test/%s' % str(obj_id))
         self.assertEquals(response.status_code, 404)
 

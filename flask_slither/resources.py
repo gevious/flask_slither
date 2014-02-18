@@ -256,13 +256,14 @@ class BaseResource(MethodView):
             query = {self.lookup_field: kwargs['_lookup']}
 
         if query.keys()[0] in al.keys():
-            # return 404 if instance not in access_limits
+            # and the clashing values together
             k = query.keys()[0]
-            vals = al[k] if isinstance(al[k], list) else [al[k]]
-            if query[k] not in vals:
-                    query[k] = False  # Ensure no matching element
+            query['$and'] = [] if '$and' not in query else query['$and']
+            query['$and'].extend([{k: query[k]}, {k: al[k]}])
+            del query[k]
         else:
             query.update(al)
+        print query
 
         count = current_app.db[self.collection].find(query).count()
         if count < 1:
