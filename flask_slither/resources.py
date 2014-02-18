@@ -263,7 +263,6 @@ class BaseResource(MethodView):
             del query[k]
         else:
             query.update(al)
-        print query
 
         count = current_app.db[self.collection].find(query).count()
         if count < 1:
