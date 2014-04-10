@@ -56,7 +56,7 @@ class BaseResource(MethodView):
     root_key = collection
 
     """Always return payload matching updated instance"""
-    always_return_payload = False
+    always_return_payload = True
 
     """Allow cors requests"""
     cors_enabled = False
