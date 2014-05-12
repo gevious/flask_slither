@@ -57,7 +57,8 @@ class BaseResource(MethodView):
     """Always return payload matching updated instance. More fine-grain
        control can be achieved but setting `always_return_payload_<VERB>` where
        <VERB> is either post, put or patch"""
-    always_return_payload = True
+    always_return_payload = False
+    always_return_payload_post = True
 
     """Allow cors requests"""
     cors_enabled = False
