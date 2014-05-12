@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import with_statement
 
-#from api.decorators import authenticate
 from bson.objectid import ObjectId
 from bson import json_util
 from datetime import datetime
@@ -55,7 +54,9 @@ class BaseResource(MethodView):
        this value, it will become the root key of every request"""
     root_key = collection
 
-    """Always return payload matching updated instance"""
+    """Always return payload matching updated instance. More fine-grain
+       control can be achieved but setting `always_return_payload_<VERB>` where
+       <VERB> is either post, put or patch"""
     always_return_payload = True
 
     """Allow cors requests"""
@@ -109,7 +110,7 @@ class BaseResource(MethodView):
         obj_id = "" if obj_id == "" else "/%s" % obj_id
         prefix = current_app.blueprints[request.blueprint].url_prefix
         prefix = "" if prefix is None else prefix
-        #TODO: figure out to get this 1.0 prefix from the blueprint url_prefix
+        # TODO: figure out to get this 1.0 prefix from the blueprint url_prefix
         prefix = "/1.0"
         return ('<link rel="%(rel)s" title="%(title)s" '
                 'href="%(prefix)s/%(collection)s%(obj_id)s" />') % \
@@ -118,7 +119,7 @@ class BaseResource(MethodView):
 
     def _datetime_parser(self, dct):
         for k, v in dct.items():
-            #TODO: update regex to match time better
+            # TODO: update regex to match time better
             if isinstance(v, basestring) and re.search("\ UTC", v):
                 try:
                     dct[k] = datetime.strptime(v, self.DATE_FORMAT)
@@ -140,7 +141,7 @@ class BaseResource(MethodView):
                                        status=409)
 
     ######################################
-    ## Preparing response into proper mime
+    # Preparing response into proper mime
     def _prep_response(self, dct={}, last_modified=None, etag=None,
                        status=200, **kwargs):
         if str(status)[0] == '2' and hasattr(self, 'redirect'):
@@ -344,7 +345,8 @@ class BaseResource(MethodView):
             current_app.db[self.collection].update(
                 {"_id": g.s_instance['_id']}, {"$set": change})
             self.post_save(collection=self.collection, change=change)
-            if self.always_return_payload:
+            if self.always_return_payload \
+                    or getattr(self, 'always_return_payload_patch', False):
                 return self._prep_response(g.s_instance, status=200)
             return self._prep_response(status=204)
         except ApiException, e:
@@ -366,10 +368,14 @@ class BaseResource(MethodView):
             g.s_instance['_id'] = obj_id
             data = {self._get_root(): g.s_instance}
             if is_update:
-                d = data if self.always_return_payload else {}
-                return self._prep_response(d)
+                if not self.always_return_payload \
+                        and not getattr(self, 'always_return_payload_post',
+                                        False):
+                    data = {}
+                return self._prep_response(data)
 
-            if self.always_return_payload:
+            if self.always_return_payload \
+                    or getattr(self, 'always_return_payload_post', False):
                 return self._prep_response(data, status=201,
                                            headers=[('Location', location)])
             return self._prep_response(status=201,
@@ -396,6 +402,9 @@ class BaseResource(MethodView):
                 {"_id": g.s_instance['_id']}, query)
             change['_id'] = g.s_instance['_id']
             self.post_save(change=change)
+            if self.always_return_payload \
+                    or getattr(self, 'always_return_payload_put', False):
+                return self._prep_response(g.s_instance, status=200)
             return self._prep_response(status=204)
         except ApiException, e:
             return self._exception_handler(e)
