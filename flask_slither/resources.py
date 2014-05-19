@@ -398,6 +398,8 @@ class BaseResource(MethodView):
             for k in g.s_instance.keys():
                 if k not in change and k != '_id':
                     query['$unset'][k] = 1
+            if query['$unset'] == {}:
+                query.pop('$unset')
 
             current_app.db[self.collection].update(
                 {"_id": g.s_instance['_id']}, query)
