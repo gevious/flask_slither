@@ -24,7 +24,14 @@ def _pluralize(name):
 def register_api(mod, view, **kwargs):
     name = view.__name__.lower()[:-8]  # remove _api from the end
     endpoint = kwargs.get('endpoint', "%s_api" % name)
-    url = "/%s" % kwargs.get('url', _pluralize(name))
+    path = kwargs.get('url', _pluralize(name)).strip('/')
+    namespace = getattr(mod, 'namespace', "").strip('/')
+    url = '/'
+    if namespace.strip() != "":
+        url = "/{}".format(namespace)
+        if path.strip() != "":
+            url += '/'
+    url += path
     setattr(view, '_url', url)  # need this for 201 location header
     view_func = view.as_view(endpoint)
 
@@ -36,6 +43,6 @@ def register_api(mod, view, **kwargs):
     mod.add_url_rule('%s/<_lookup>' % url,
                      view_func=view_func,
                      methods=['GET', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
-    #TODO: add hook to add custom routes that user provides
-    #TODO: add regex url mapper somewhere here that works for blueprints
+    # TODO: add hook to add custom routes that user provides
+    # TODO: add regex url mapper somewhere here that works for blueprints
     #      and where mod=app
