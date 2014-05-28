@@ -25,13 +25,7 @@ def register_api(mod, view, **kwargs):
     name = view.__name__.lower()[:-8]  # remove _api from the end
     endpoint = kwargs.get('endpoint', "%s_api" % name)
     path = kwargs.get('url', _pluralize(name)).strip('/')
-    namespace = getattr(mod, 'namespace', "").strip('/')
-    url = '/'
-    if namespace.strip() != "":
-        url = "/{}".format(namespace)
-        if path.strip() != "":
-            url += '/'
-    url += path
+    url = '/{}'.format(path)
     setattr(view, '_url', url)  # need this for 201 location header
     view_func = view.as_view(endpoint)
 
