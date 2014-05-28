@@ -198,6 +198,8 @@ class BaseResource(MethodView):
             end_idx = location[idx:].find('/') + idx
             location = "%s%s%s" % \
                 (location[:start_idx], v, location[end_idx:])
+        if hasattr(current_app, 'namespace'):
+            location = "{}/{}".format(current_app.namespace, location)
         return '%s/%s' % (location, obj_id)
 
     def post_save(self, **kwargs):
