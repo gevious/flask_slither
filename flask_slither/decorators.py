@@ -70,6 +70,15 @@ def preflight_checks(f):
 
         current_app.logger.debug("%s request received" %
                                  request.method.upper())
+
+        has_payload_collection = False
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            g.s_data = {} if request.data.strip() == "" else \
+                json_util.loads(request.data)
+            if self._get_root() in g.s_data:
+                has_payload_collection = True
+                g.s_data = g.s_data[self._get_root()]
+
         if not self.authentication.is_authenticated(**kwargs):
             msg = g.authentication_error \
                 if hasattr(g, 'authentication_error') else None
@@ -81,16 +90,13 @@ def preflight_checks(f):
             msg = g.authorization_error \
                 if hasattr(g, 'authorization_error') else None
             return self._prep_response(msg, status=403)
-        if request.method in ['POST', 'PUT', 'PATCH']:
-            # enforcing collection as root of payload
-            g.s_data = {} if request.data.strip() == "" else \
-                json_util.loads(request.data)
+
+        if request.method in ['POST', 'PUT', 'PATCH'] \
+                and not has_payload_collection:
             if self._get_root() not in g.s_data:
                 if self.enforce_payload_collection:
                     return self._prep_response("No collection in payload",
                                                status=400)
-            else:
-                g.s_data = g.s_data[self._get_root()]
 
         return f(self, *args, **kwargs)
     return decorator
