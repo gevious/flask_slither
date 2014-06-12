@@ -73,8 +73,12 @@ def preflight_checks(f):
 
         has_payload_collection = False
         if request.method in ['POST', 'PUT', 'PATCH']:
-            g.s_data = {} if request.data.strip() == "" else \
-                json_util.loads(request.data)
+            try:
+                g.s_data = {} if request.data.strip() == "" else \
+                    json_util.loads(request.data)
+            except ValueError:
+                return self._prep_response("Malformed json payload received",
+                                           status=400)
             if self._get_root() in g.s_data:
                 has_payload_collection = True
                 g.s_data = g.s_data[self._get_root()]
