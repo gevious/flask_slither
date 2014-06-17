@@ -33,9 +33,8 @@ def crossdomain(f):
             return self._prep_response("CORS request blacklisted", status=405)
         if self.cors_allowed is not None and hostname not in self.cors_allowed:
             return self._prep_response("CORS request refused", status=405)
-        if 'origin' not in request.headers:
-            return self._prep_response("No origin in header", status=405)
-        h['Access-Control-Allow-Origin'] = request.headers['origin']
+        if 'origin' in request.headers:
+            h['Access-Control-Allow-Origin'] = request.headers['origin']
 
         # Request header checks
         if 'access-control-request-headers' in request.headers:

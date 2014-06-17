@@ -154,10 +154,6 @@ class BaseResource(MethodView):
         resp = make_response(rendered, status)
         resp.headers.add('Cache-Control',
                          'max-age=%s,must-revalidate' % 30)
-        # todo, make this variable
-        current_app.logger.warning("Change the origin policy")
-        resp.headers.add('Access-Control-Allow-Origin',
-                         request.headers.get('origin', '*'))
         for h in kwargs.get('headers', []):
             resp.headers.add(h[0], h[1])
         resp.expires = time.time() + 30
