@@ -12,6 +12,7 @@ from flask.ext.slither.decorators import preflight_checks, crossdomain
 from flask.ext.slither.exceptions import ApiException
 from flask.ext.slither.validation import NoValidation
 
+import json
 import pymongo
 import re
 import time
@@ -45,16 +46,22 @@ class BaseResource(MethodView):
     list will return a 405 if accessed."""
     allowed_methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
-    """By default all POST and PUT methods must have their payloads wrapped
+    """ By default all POST and PUT methods must have their payloads wrapped
        in the collection name. Setting this to `False` will prevent the
        default behaviour"""
     enforce_payload_collection = True
+
+    """ The default respons will use the mongo json library to convert
+        ObjectIds into {$oid: foo}. When this switch is turned off, the `_id`
+        field will be renamed to `id`, and all ObjectId values will be passed
+        through as strings"""
+    payload_mongo_format = True
 
     """By default the json base key is the collection name. However by changing
        this value, it will become the root key of every request"""
     root_key = collection
 
-    """Always return payload matching updated instance. More fine-grain
+    """ Always return payload matching updated instance. More fine-grain
        control can be achieved but setting `always_return_payload_<VERB>` where
        <VERB> is either post, put or patch"""
     always_return_payload = False
@@ -108,7 +115,7 @@ class BaseResource(MethodView):
     def _link(self, rel, **kwargs):
         title = kwargs.get('title', self.collection[:-1].title())
         obj_id = kwargs.get('obj_id', "")
-        obj_id = "" if obj_id == "" else "/%s" % obj_id
+        obj_id = "" if obj_id == "" else "/{}".format(obj_id)
         prefix = current_app.blueprints[request.blueprint].url_prefix
         prefix = "" if prefix is None else prefix
         # TODO: figure out to get this 1.0 prefix from the blueprint url_prefix
@@ -149,8 +156,7 @@ class BaseResource(MethodView):
             return redirect(self.redirect)
         # TODO: handle more mime types
         mime = "application/json"
-        rendered = json_util.dumps(dct)
-    #    rendered = globals()[render](**dct)
+        rendered = self._get_json_payload(dct)
         resp = make_response(rendered, status)
         resp.headers.add('Cache-Control',
                          'max-age=%s,must-revalidate' % 30)
@@ -165,6 +171,19 @@ class BaseResource(MethodView):
         if rendered != "":
             resp.mimetype = mime
         return resp
+
+    def _get_json_payload(self, dct):
+        def mydefault(obj):
+            if isinstance(obj, ObjectId):
+                return str(obj)
+            return json_util.default
+
+        if getattr(self, 'payload_mongo_format', True):
+            return json_util.dumps(dct)
+        else:
+            if '_id' in dct[self._get_root()]:
+                dct[self._get_root()]['id'] = dct[self._get_root()].pop('_id')
+            return json.dumps(dct, default=mydefault)
 
     def access_limits(self, **kwargs):
         """ Returns a query which filters the current collection based on
