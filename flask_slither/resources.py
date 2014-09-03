@@ -181,7 +181,8 @@ class BaseResource(MethodView):
         if getattr(self, 'payload_mongo_format', True):
             return json_util.dumps(dct)
         else:
-            if '_id' in dct[self._get_root()]:
+            if isinstance(dct, dict) and \
+                    '_id' in dct.get(self._get_root(), []):
                 dct[self._get_root()]['id'] = dct[self._get_root()].pop('_id')
             return json.dumps(dct, default=mydefault)
 
