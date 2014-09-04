@@ -181,9 +181,14 @@ class BaseResource(MethodView):
         if getattr(self, 'payload_mongo_format', True):
             return json_util.dumps(dct)
         else:
-            if isinstance(dct, dict) and \
-                    '_id' in dct.get(self._get_root(), []):
-                dct[self._get_root()]['id'] = dct[self._get_root()].pop('_id')
+            if isinstance(dct, dict):
+                if isinstance(dct.get(self._get_root(), None), list):
+                    for r in dct[self._get_root()]:
+                        if '_id' in r:
+                            r['id'] = r.pop('_id')
+                elif '_id' in dct.get(self._get_root(), []):
+                    dct[self._get_root()]['id'] = \
+                        dct[self._get_root()].pop('_id')
             return json.dumps(dct, default=mydefault)
 
     def access_limits(self, **kwargs):
