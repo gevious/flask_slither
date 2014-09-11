@@ -51,11 +51,11 @@ class BaseResource(MethodView):
        default behaviour"""
     enforce_payload_collection = True
 
-    """ The default respons will use the mongo json library to convert
-        ObjectIds into {$oid: foo}. When this switch is turned off, the `_id`
-        field will be renamed to `id`, and all ObjectId values will be passed
-        through as strings"""
-    payload_mongo_format = True
+    """ The default response will include `id` instead of `_id` and the
+        ObjectId fields will be converted into a json string value.
+        When this switch is turned on, the `_id` will be the primary key, and
+        all ObjectId values will be passed through as {$oid: <foo>}"""
+    payload_mongo_format = False
 
     """By default the json base key is the collection name. However by changing
        this value, it will become the root key of every request"""
@@ -159,7 +159,7 @@ class BaseResource(MethodView):
         rendered = self._get_json_payload(dct)
         resp = make_response(rendered, status)
         resp.headers.add('Cache-Control',
-                         'max-age=%s,must-revalidate' % 30)
+                         'max-age={},must-revalidate'.format(30))
         for h in kwargs.get('headers', []):
             resp.headers.add(h[0], h[1])
         resp.expires = time.time() + 30
@@ -174,11 +174,12 @@ class BaseResource(MethodView):
 
     def _get_json_payload(self, dct):
         def mydefault(obj):
-            if isinstance(obj, ObjectId):
-                return str(obj)
-            return json_util.default
+            d = json_util.default(obj)
+            if isinstance(d, dict) and '$oid' in d:
+                return d['$oid']
+            return d
 
-        if getattr(self, 'payload_mongo_format', True):
+        if self.payload_mongo_format:
             return json_util.dumps(dct)
         else:
             if isinstance(dct, dict):
@@ -217,11 +218,11 @@ class BaseResource(MethodView):
                 continue
             start_idx = location.rfind('/', 0, idx)
             end_idx = location[idx:].find('/') + idx
-            location = "%s%s%s" % \
-                (location[:start_idx], v, location[end_idx:])
+            location = "{}{}{}".format(
+                location[:start_idx], v, location[end_idx:])
         if hasattr(current_app, 'api_version'):
             location = "{}{}".format(current_app.api_version, location)
-        return '%s/%s' % (location, obj_id)
+        return "{}/{}".format(location, obj_id)
 
     def post_save(self, **kwargs):
         """ A hook to run other code that depends on successful post"""
@@ -296,7 +297,7 @@ class BaseResource(MethodView):
             raise ApiException("Multiple records found for this lookup")
         g.s_instance = current_app.db[self.collection] \
             .find_one(query, self._get_projection())
-        return {self._get_root(): g.s_instance}
+        return {self._get_root(): g.s_instance.copy()}
 
     def _get_projection(self):
         projection = {}
@@ -309,7 +310,7 @@ class BaseResource(MethodView):
         return None if final == {} else final
 
     def _validate(self, **kwargs):
-        method = 'validate_%s' % request.method.lower()
+        method = 'validate_{}'.format(request.method.lower())
         if not hasattr(self.validation, method):
             current_app.logger.warning("No validation performed")
             return
@@ -339,7 +340,7 @@ class BaseResource(MethodView):
         """ GET request entry point. We split the request into 2 paths:
             Getting a specific instance, either by id or lookup field
             Getting a list of records"""
-        current_app.logger.debug("kwargs: %s" % kwargs)
+        current_app.logger.debug("kwargs: {}".format(kwargs))
         if '_lookup' in kwargs or 'obj_id' in kwargs:
             kwargs['is_instance'] = True
         try:
@@ -359,7 +360,7 @@ class BaseResource(MethodView):
     def patch(self, **kwargs):
         try:
             self._get_instance(**kwargs)[self._get_root()]
-            current_app.logger.debug("Obj pre change: %s" % g.s_instance)
+            current_app.logger.debug("Obj pre change: {}".format(g.s_instance))
             change = self.pre_validation_transform(**kwargs)
             if change == {}:
                 return self._prep_response({}, status=204)

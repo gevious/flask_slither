@@ -21,7 +21,7 @@ def crossdomain(f):
         resp = f(self, *args, **kwargs)
 
         h = resp.headers
-        current_app.logger.debug("Request Headers: %s" % request.headers)
+        current_app.logger.debug("Request Headers: {}".format(request.headers))
         allowed_methods = self.cors_methods + ["OPTIONS"]
         h['Access-Control-Allow-Methods'] = ", ".join(allowed_methods)
         h['Access-Control-Max-Age'] = str(self.cors_max_age)
@@ -68,8 +68,8 @@ def preflight_checks(f):
         if 'obj_id' in kwargs:
             kwargs['obj_id'] = ObjectId(kwargs['obj_id'])
 
-        current_app.logger.debug("%s request received" %
-                                 request.method.upper())
+        current_app.logger.debug(
+            "{} request received".format(request.method.upper()))
 
         has_payload_collection = False
         if request.method in ['POST', 'PUT', 'PATCH']:
