@@ -36,7 +36,7 @@ class NonstandardCollectionName(BasicTestCase):
         count = self.app.db[collection_name].count()
         self.assertFalse(self.app.db[collection_name].find_one(
             {'_id': obj_id}) is None)
-        response = self.client.delete("/nstest/%s" % str(obj_id))
+        response = self.client.delete("/nstest/{}".format(obj_id))
         self.assertEquals(response.status_code, 204)
         self.assertEquals(self.app.db[collection_name].count(), count - 1)
         self.assertTrue(self.app.db[collection_name].find_one(
@@ -44,11 +44,10 @@ class NonstandardCollectionName(BasicTestCase):
 
     def test_get_instance(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
-        response = self.client.get('/nstest/%s' % str(obj_id))
+        response = self.client.get('/nstest/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
         expected_data = {self.cn: {
-            '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
-            'extra': "Extra 0"}}
+            'id': str(obj_id), 'name': "Record 0", 'extra': "Extra 0"}}
         self.assertEquals(response.json, expected_data)
 
     def test_get_list(self):
@@ -59,9 +58,9 @@ class NonstandardCollectionName(BasicTestCase):
     def test_patch(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {self.cn: {'name': "patched"}}
-        response = self.client.patch('/nstest/%s' % str(obj['_id']),
-                                     data=json.dumps(data),
-                                     content_type="application/json")
+        response = self.client.patch(
+            '/nstest/{}'.format(obj['_id']), data=json.dumps(data),
+            content_type="application/json")
         self.assertEquals(response.status_code, 204)
 
     def test_post(self):
@@ -74,9 +73,9 @@ class NonstandardCollectionName(BasicTestCase):
     def test_put(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {self.cn: {'name': "updated", 'extra': "winner"}}
-        response = self.client.put('/nstest/%s' % str(obj['_id']),
-                                   data=json.dumps(data),
-                                   content_type="application/json")
+        response = self.client.put(
+            '/nstest/{}'.format(obj['_id']), data=json.dumps(data),
+            content_type="application/json")
         self.assertEquals(response.status_code, 204)
 
 
@@ -102,12 +101,12 @@ class UrlsTests(TestCase):
         # Insert test records
         for i in range(10):
             self.app.db[collection_name].insert(
-                {'name': "Record %s" % i, 'extra': "Extra %s" % i})
+                {'name': "Record {}".format(i), 'extra': "Extra {}".format(i)})
         self.app.db['users'].insert(
             {'username': "testuser", 'auth': {
                 'access_key': "super", 'secret_key': "duper"}})
         u_id = str(self.app.db['users'].find_one()['_id'])
-        self.url = "/%s/test" % u_id
+        self.url = "/{}/test".format(u_id)
 
     def tearDown(self):
         self.app.db[collection_name].drop()
@@ -123,12 +122,12 @@ class UrlsTests(TestCase):
             self.assertEquals(len(response.json[collection_name]), 10)
             for i in range(10):
                 self.assertEquals(response.json[collection_name][i]['name'],
-                                  "Record %s" % i)
+                                  "Record {}".format(i))
                 self.assertEquals(response.json[collection_name][i]['extra'],
-                                  "Extra %s" % i)
+                                  "Extra {}".format(i))
 
     def test_get_list_invalid_url(self):
-        self.url = "/%s" % self.url[2:]
+        self.url = "/{}".format(self.url[2:])
         response = self.client.get(self.url)
         self.assertEquals(response.status_code, 404)
 
@@ -139,9 +138,8 @@ class UrlsTests(TestCase):
                                     content_type="application/json")
         self.assertEquals(response.status_code, 201)
         obj = self.app.db[collection_name].find_one({'name': "post"})
-        self.assertEquals(response.location,
-                          "http://localhost%s/%s" %
-                          (self.url, str(obj['_id'])))
+        self.assertEquals(response.location, "http://localhost{}/{}".format(
+                          self.url, str(obj['_id'])))
         r = self.client.get(response.location[len('http://localhost/'):])
         self.assertEquals(r.status_code, 200)
 
@@ -166,12 +164,12 @@ class AdvancedFunctionality(BasicTestCase):
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 1"})['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 0"})['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/'.format(obj_id))
         self.assertEquals(response.status_code, 404)
 
     def test_get_collection_with_access_limits(self):
@@ -192,7 +190,7 @@ class AdvancedFunctionality(BasicTestCase):
 
         self.assertEquals(len(response.json['tests']), 2)
         for i, u in enumerate(response.json['tests']):
-            self.assertEquals(u['name'], "Record %s" % i)
+            self.assertEquals(u['name'], "Record {}".format(i))
 
     def test_get_instance_with_access_limits(self):
         """ Ensure only the instance is returned for a wide access_limit range.
@@ -209,17 +207,17 @@ class AdvancedFunctionality(BasicTestCase):
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 0"})['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 1"})['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
 
         obj_id = self.app.db[collection_name].find_one(
             {'name': "Record 2"})['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 404)
 
 
@@ -244,7 +242,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
 
     def test_get_instance_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
 
     def test_get_instance_by_lookup(self):
@@ -264,7 +262,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {collection_name: {'name': "patched"}}
         count = self.app.db[collection_name].count()
-        response = self.client.patch('/test/%s' % str(obj['_id']),
+        response = self.client.patch('/test/{}'.format(obj['_id']),
                                      data=json.dumps(data),
                                      content_type="application/json")
         self.assertEquals(response.status_code, 403)
@@ -274,7 +272,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {collection_name: {'name': "updated", 'extra': "winner"}}
         count = self.app.db[collection_name].count()
-        response = self.client.put('/test/%s' % str(obj['_id']),
+        response = self.client.put('/test/{}'.format(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
         self.assertEquals(response.status_code, 403)
@@ -283,7 +281,7 @@ class ReadOnlyAuthorizationTestCase(BasicTestCase):
     def test_delete_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
         count = self.app.db[collection_name].count()
-        response = self.client.delete("/test/%s" % str(obj_id))
+        response = self.client.delete("/test/{}".format(obj_id))
         self.assertEquals(response.status_code, 403)
         self.assertEquals(self.app.db[collection_name].count(), count)
 

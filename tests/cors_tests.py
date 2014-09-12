@@ -39,12 +39,12 @@ class CORS(TestCase):
         # Insert test records
         for i in range(10):
             self.app.db[collection_name].insert(
-                {'name': "Record %s" % i, 'extra': "Extra %s" % i})
+                {'name': "Record {}".format(i), 'extra': "Extra {}".format(i)})
         self.app.db['users'].insert(
             {'username': "testuser", 'auth': {
                 'access_key': "super", 'secret_key': "duper"}})
         u_id = str(self.app.db['users'].find_one()['_id'])
-        self.url = "/%s/test" % u_id
+        self.url = "/{}/test".format(u_id)
 
     def tearDown(self):
         self.app.db[collection_name].drop()
@@ -62,7 +62,8 @@ class CORS(TestCase):
                 'access-control-max-age': "21600",
             }
             for k, v in expected_headers.iteritems():
-                self.assertEquals(r.headers.get(k), v, "Bad header: %s" % k)
+                self.assertEquals(
+                    r.headers.get(k), v, "Bad header: {}".format(k))
             self.assertFalse('access-control-allow-headers' in r.headers)
 
     def test_check_rq_header(self):

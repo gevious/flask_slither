@@ -51,7 +51,7 @@ class BasicTestCase(TestCase):
         # Insert test records
         for i in range(10):
             self.app.db[collection_name].insert(
-                {'name': "Record %s" % i, 'extra': "Extra %s" % i})
+                {'name': "Record {}".format(i), 'extra': "Extra {}".format(i)})
         self.app.db['users'].insert(
             {'username': "testuser", 'auth': {
                 'access_key': "super", 'secret_key': "duper"}})
@@ -67,7 +67,7 @@ class DefaultFunctionality(BasicTestCase):
         count = self.app.db[collection_name].count()
         self.assertFalse(self.app.db[collection_name].find_one(
             {'_id': obj_id}) is None)
-        response = self.client.delete("/test/%s" % str(obj_id))
+        response = self.client.delete("/test/{}".format(obj_id))
         self.assertEquals(response.status_code, 204)
         self.assertEquals(self.app.db[collection_name].count(), count - 1)
         self.assertTrue(self.app.db[collection_name].find_one(
@@ -90,9 +90,9 @@ class DefaultFunctionality(BasicTestCase):
         self.assertEquals(len(response.json[collection_name]), 10)
         for i in range(10):
             self.assertEquals(response.json[collection_name][i]['name'],
-                              "Record %s" % i)
+                              "Record {}".format(i))
             self.assertEquals(response.json[collection_name][i]['extra'],
-                              "Extra %s" % i)
+                              "Extra {}".format(i))
 
     def test_get_list_search(self):
         response = self.client.get('/test?where={"name": "Record 3"}')
@@ -110,20 +110,19 @@ class DefaultFunctionality(BasicTestCase):
 
     def test_get_instance_by_id(self):
         obj_id = self.app.db[collection_name].find_one()['_id']
-        response = self.client.get('/test/%s' % str(obj_id))
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 200)
         expected_data = {collection_name: {
-            '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
-            'extra': "Extra 0"}}
+            'id': str(obj_id), 'name': "Record 0", 'extra': "Extra 0"}}
         self.assertEquals(response.json, expected_data)
 
     def test_get_instance_by_id_missing(self):
         obj_id = str(self.app.db[collection_name].find_one()['_id'])
         if obj_id[0] == 'a':
-            obj_id = "b%s" % obj_id[1:]
+            obj_id = "b{}".format(obj_id[1:])
         else:
-            obj_id = "a%s" % obj_id[1:]
-        response = self.client.get('/test/%s' % obj_id)
+            obj_id = "a{}".format(obj_id[1:])
+        response = self.client.get('/test/{}'.format(obj_id))
         self.assertEquals(response.status_code, 404)
 
     def test_get_instance_by_lookup(self):
@@ -131,8 +130,7 @@ class DefaultFunctionality(BasicTestCase):
         response = self.client.get('/test/Record 0')
         self.assertEquals(response.status_code, 200)
         expected_data = {collection_name: {
-            '_id': {"$oid": str(obj_id)}, 'name': "Record 0",
-            'extra': "Extra 0"}}
+            'id': str(obj_id), 'name': "Record 0", 'extra': "Extra 0"}}
         self.assertEquals(response.json, expected_data)
 
     def test_get_instance_by_lookup_missing(self):
@@ -153,13 +151,13 @@ class DefaultFunctionality(BasicTestCase):
         response = self.client.get('/test/Record 4?_fields=extra')
         self.assertEquals(response.status_code, 200)
         expected_data = {collection_name: {
-            '_id': {"$oid": str(obj['_id'])}, 'extra': "Extra 4"}}
+            'id': str(obj['_id']), 'extra': "Extra 4"}}
         self.assertEquals(response.json, expected_data)
 
     def test_patch(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {collection_name: {'name': "patched"}}
-        response = self.client.patch('/test/%s' % str(obj['_id']),
+        response = self.client.patch('/test/{}'.format(obj['_id']),
                                      data=json.dumps(data),
                                      content_type="application/json")
         self.assertEquals(response.status_code, 204)
@@ -174,7 +172,7 @@ class DefaultFunctionality(BasicTestCase):
         self.assertEquals(response.status_code, 201)
         obj = self.app.db[collection_name].find_one({'name': "post"})
         self.assertEquals(response.location,
-                          "http://localhost/test/%s" % str(obj['_id']))
+                          "http://localhost/test/{}".format(obj['_id']))
         for k, v in data[collection_name].iteritems():
             self.assertEquals(obj[k], v)
 
@@ -188,7 +186,7 @@ class DefaultFunctionality(BasicTestCase):
     def test_put(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {collection_name: {'name': "updated", 'extra': "winner"}}
-        response = self.client.put('/test/%s' % str(obj['_id']),
+        response = self.client.put('/test/{}'.format(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
         self.assertEquals(response.status_code, 204)
@@ -199,7 +197,7 @@ class DefaultFunctionality(BasicTestCase):
     def test_put_exclude_field(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
         data = {collection_name: {'name': "updated"}}
-        response = self.client.put('/test/%s' % str(obj['_id']),
+        response = self.client.put('/test/{}'.format(obj['_id']),
                                    data=json.dumps(data),
                                    content_type="application/json")
         self.assertEquals(response.status_code, 204)
@@ -214,5 +212,6 @@ class DefaultFunctionality(BasicTestCase):
             Resource.allowed_methods = allowed_methods
             func = getattr(self.client, k.lower())
             response = func('/test')
-            self.assertEquals(response.status_code, 405, "Error in %s" % k)
+            self.assertEquals(
+                response.status_code, 405, "Error in {}".format(k))
         Resource.allowed_methods = orig_allowed
