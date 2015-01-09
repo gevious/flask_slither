@@ -385,12 +385,12 @@ class BaseResource(MethodView):
             self._validate(data=g.s_instance, **kwargs)
             is_update = '_id' in g.s_instance
             obj_id = current_app.db[self.collection].save(g.s_instance)
+            g.s_instance['_id'] = obj_id
 
             self.post_save(collection=self.collection)
             location = self.get_location(obj_id, **kwargs)
 
             current_app.logger.warning("Formatting return payload")
-            g.s_instance['_id'] = obj_id
             data = {self._get_root(): g.s_instance}
             if is_update:
                 if not self.always_return_payload \
