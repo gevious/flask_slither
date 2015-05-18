@@ -9,7 +9,7 @@
 """
 
 __author__ = 'Nico Gevers'
-__version__ = (0, 4, 23)
+__version__ = (1, 0, 0)
 
 
 def _pluralize(name):

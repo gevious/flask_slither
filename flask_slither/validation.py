@@ -13,7 +13,7 @@ class Validation(NoValidation):
             return
         obj = kwargs.get('model')(data)
         obj.validate()
-        for k, v in obj.validation_errors.iteritems():
+        for k, v in obj.validation_errors.items():
             key = "structure" if k is None else k
             self.errors[key] = []
             for error in v:

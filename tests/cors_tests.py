@@ -61,7 +61,7 @@ class CORS(TestCase):
                 "GET, POST, PUT, PATCH, DELETE, OPTIONS",
                 'access-control-max-age': "21600",
             }
-            for k, v in expected_headers.iteritems():
+            for k, v in expected_headers.items():
                 self.assertEquals(
                     r.headers.get(k), v, "Bad header: {}".format(k))
             self.assertFalse('access-control-allow-headers' in r.headers)

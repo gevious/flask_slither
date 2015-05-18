@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import with_statement
-
 from bson.objectid import ObjectId
 from bson import json_util
 from datetime import datetime
@@ -212,7 +210,7 @@ class BaseResource(MethodView):
         """Generate the location uri for POST 201 response"""
         # Swap placeholders in url with actual values
         location = self._url
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             idx = location.find(k)
             if idx < 0:
                 continue
@@ -241,7 +239,7 @@ class BaseResource(MethodView):
 #        for k, v in g.s_data.iteritems():
 #            if isinstance(v, dict) and '$oid' in v:
 #                g.s_data[k] = ObjectId(v['$oid'])
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             if k in ['obj_id', '_lookup']:
                 continue
             data[k] = ObjectId(v)
@@ -262,7 +260,7 @@ class BaseResource(MethodView):
                 .find(query, self._get_projection())
             if 'sort' in request.args:
                 sort = []
-                for k, v in json_util.loads(request.args['sort']).iteritems():
+                for k, v in json_util.loads(request.args['sort']).items():
                     sort.append(
                         (k, pymongo.ASCENDING if v else pymongo.DESCENDING))
                 cursor = cursor.sort(sort)
@@ -281,9 +279,9 @@ class BaseResource(MethodView):
         else:
             query = {self.lookup_field: kwargs['_lookup']}
 
-        if query.keys()[0] in al.keys():
+        if list(query.keys())[0] in al.keys():
             # and the clashing values together
-            k = query.keys()[0]
+            k = list(query.keys())[0]
             query['$and'] = [] if '$and' not in query else query['$and']
             query['$and'].extend([{k: query[k]}, {k: al[k]}])
             del query[k]
@@ -331,7 +329,7 @@ class BaseResource(MethodView):
             current_app.db[self.collection].remove(self.delete_query(**kwargs))
             self.post_delete(collection=self.collection, **kwargs)
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             return self._exception_handler(e)
 
     @crossdomain
@@ -352,7 +350,7 @@ class BaseResource(MethodView):
             if getattr(self, 'get_raw_payload', False):
                 return payload
             return self._prep_response(payload)
-        except ApiException, e:
+        except ApiException as e:
             return self._exception_handler(e)
 
     @crossdomain
@@ -374,7 +372,7 @@ class BaseResource(MethodView):
                     or getattr(self, 'always_return_payload_patch', False):
                 return self._prep_response(g.s_instance, status=200)
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             return self._exception_handler(e)
 
     @crossdomain
@@ -405,7 +403,7 @@ class BaseResource(MethodView):
                                            headers=[('Location', location)])
             return self._prep_response(status=201,
                                        headers=[('Location', location)])
-        except ApiException, e:
+        except ApiException as e:
             return self._exception_handler(e)
 
     @crossdomain
@@ -433,7 +431,7 @@ class BaseResource(MethodView):
                     or getattr(self, 'always_return_payload_put', False):
                 return self._prep_response(g.s_instance, status=200)
             return self._prep_response(status=204)
-        except ApiException, e:
+        except ApiException as e:
             return self._exception_handler(e)
 
     @crossdomain

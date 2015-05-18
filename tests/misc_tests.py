@@ -53,7 +53,7 @@ class NonstandardCollectionName(BasicTestCase):
     def test_get_list(self):
         response = self.client.get('/nstest')
         self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.json.keys(), [self.cn])
+        self.assertEquals(list(response.json.keys()), [self.cn])
 
     def test_patch(self):
         obj = self.app.db[collection_name].find_one({'name': "Record 4"})
@@ -118,7 +118,7 @@ class UrlsTests(TestCase):
             self.assertEquals(response.status_code, 200)
             u_id = str(self.app.db['users'].find_one()['_id'])
             self.assertEquals(g.kwargs['company'], u_id)
-            self.assertEquals(response.json.keys(), [collection_name])
+            self.assertEquals(list(response.json.keys()), [collection_name])
             self.assertEquals(len(response.json[collection_name]), 10)
             for i in range(10):
                 self.assertEquals(response.json[collection_name][i]['name'],

@@ -86,7 +86,7 @@ class DefaultFunctionality(BasicTestCase):
     def test_get_list(self):
         response = self.client.get('/test')
         self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.json.keys(), [collection_name])
+        self.assertEquals(list(response.json.keys()), [collection_name])
         self.assertEquals(len(response.json[collection_name]), 10)
         for i in range(10):
             self.assertEquals(response.json[collection_name][i]['name'],
@@ -97,7 +97,7 @@ class DefaultFunctionality(BasicTestCase):
     def test_get_list_search(self):
         response = self.client.get('/test?where={"name": "Record 3"}')
         self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.json.keys(), [collection_name])
+        self.assertEquals(list(response.json.keys()), [collection_name])
         self.assertEquals(len(response.json[collection_name]), 1)
         self.assertEquals(response.json['tests'][0]['extra'], "Extra 3")
 
@@ -173,12 +173,12 @@ class DefaultFunctionality(BasicTestCase):
         obj = self.app.db[collection_name].find_one({'name': "post"})
         self.assertEquals(response.location,
                           "http://localhost/test/{}".format(obj['_id']))
-        for k, v in data[collection_name].iteritems():
+        for k, v in data[collection_name].items():
             self.assertEquals(obj[k], v)
 
     def test_post_missing_collection(self):
         data = {'name': "post", "description": "success is good"}
-        response = self.client.post('/test', json.dumps(data),
+        response = self.client.post('/test', data=json.dumps(data),
                                     content_type="application/json")
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.json, "No collection in payload")

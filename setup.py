@@ -10,11 +10,11 @@ from setuptools import setup
 
 setup(
     name='Flask-Slither',
-    version='0.5.2',
+    version='1.0.0',
     url='http://github.com/gevious/flask_slither',
     license='MIT',
     author='Nico Gevers',
-    author_email='ingevious@gmail.com',
+    author_email='me@gevious.com',
     description='A small library between MongoDB and JSON API endpoints',
     long_description=__doc__,
     packages=['flask_slither'],
@@ -27,7 +27,7 @@ setup(
         'pymongo==2.6',
     ],
     tests_require=[
-        'Flask-Testing==0.4.1',
+        'Flask-Testing==0.4.2',
         'nose==1.3.3',
     ],
     classifiers=[

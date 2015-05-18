@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from bson.objectid import ObjectId
 from bson import json_util
-from flask import request, current_app, g
+from flask import request, current_app, g, json
 from functools import wraps
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 
 def crossdomain(f):
@@ -75,7 +75,7 @@ def preflight_checks(f):
         if request.method in ['POST', 'PUT', 'PATCH']:
             try:
                 g.s_data = {} if request.data.strip() == "" else \
-                    json_util.loads(request.data)
+                    json_util.loads(request.data.decode('utf-8'))
             except ValueError:
                 return self._prep_response("Malformed json payload received",
                                            status=400)
