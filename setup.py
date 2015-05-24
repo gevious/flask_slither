@@ -10,7 +10,7 @@ from setuptools import setup
 
 setup(
     name='Flask-Slither',
-    version='1.0.0',
+    version='1.1.0',
     url='http://github.com/gevious/flask_slither',
     license='MIT',
     author='Nico Gevers',
