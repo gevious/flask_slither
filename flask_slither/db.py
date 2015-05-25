@@ -3,6 +3,7 @@ from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from pymongo import MongoClient
 from uuid import UUID
+from datetime import datetime
 
 import json
 import logging
@@ -20,6 +21,8 @@ class JSONEncoder(json.JSONEncoder):
             return str(obj)
         if isinstance(obj, UUID):
             return str(obj).replace('-', '')
+        if isinstance(obj, datetime):
+            return int(obj.timestamp())
         return json.JSONEncoder.default(self, obj)
 
 
