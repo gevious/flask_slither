@@ -10,7 +10,7 @@ from setuptools import setup
 
 setup(
     name='Flask-Slither',
-    version='1.1.2',
+    version='1.1.3',
     url='http://github.com/gevious/flask_slither',
     license='MIT',
     author='Nico Gevers',
@@ -25,12 +25,13 @@ setup(
     install_requires=[
         'Flask==0.10.1',
         'pymongo==2.6',
+        'inflect==0.2.5'
     ],
     tests_require=[
         'Flask==0.10.1',
+        'inflect==0.2.5',
         'pymongo==2.6',
-        'nose==1.3.3',
-        'inflect==0.2.5'
+        'nose==1.3.3'
     ],
     classifiers=[
         'Environment :: Web Environment',

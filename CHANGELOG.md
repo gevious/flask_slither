@@ -1,3 +1,5 @@
+# 1.1.3 - Install now install inflect library
+
 # 1.1.2 - Added json rule to convert datetime to unix timestamp
 
 # 1.1.1 - Added missing inflect library to requirements

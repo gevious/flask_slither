@@ -11,7 +11,7 @@
 import inflect
 
 __author__ = 'Nico Gevers'
-__version__ = (1, 1, 2)
+__version__ = (1, 1, 3)
 
 
 def register_resource(mod, view, **kwargs):
