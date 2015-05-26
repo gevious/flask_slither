@@ -194,6 +194,7 @@ class BaseResource(MethodView):
         """This method returns the projections for this resource"""
         return {}
 
+    @crossdomain
     @endpoint
     def get(self, **kwargs):
         current_app.logger.info("GETting record(s) from database")

@@ -1,3 +1,7 @@
+# 1.1.4 - Crossdomain fixes
+ - Added @crossdomain decorator to GET requests
+ - Added missing urllib import for crossdomain decorator
+
 # 1.1.3 - Install now install inflect library
 
 # 1.1.2 - Added json rule to convert datetime to unix timestamp

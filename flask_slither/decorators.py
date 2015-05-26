@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask import make_response, request, current_app, Response, g, json
 from functools import wraps
+from urllib.parse import urlparse
 
 
 def crossdomain(f):
