@@ -73,7 +73,7 @@ class MongoDbQuery():
         query = kwargs.get('query', {})
         projection = kwargs.get('projection', {})
         projection = None if len(projection) < 1 else projection
-        limit = kwargs.get('limit', 20)
+        limit = kwargs.get('limit', 0)  # no limit by default
         # sort = kwargs.get('sort', {})
         logging.info("About to get a collection from the database")
         logging.debug("Collection: {}".format(collection))
