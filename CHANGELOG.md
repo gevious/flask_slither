@@ -1,3 +1,5 @@
+# 1.1.5 - No GET collection limit (it used to be 20)
+
 # 1.1.4 - Crossdomain fixes
  - Added @crossdomain decorator to GET requests
  - Added missing urllib import for crossdomain decorator
