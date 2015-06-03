@@ -71,9 +71,9 @@ def endpoint(f):
             return
 
         if not a.is_authenticated(**kwargs):
-            current_app.logger.warning("Authentication failed")
-            return self._make_response(401, "Authentication failed",
-                                       abort=True)
+            msg = getattr(g, 'authentication_error', 'Authentication failed')
+            current_app.logger.warning("Authentication failed: {}".format(msg))
+            return self._make_response(401, msg, abort=True)
         current_app.logger.debug("Authentication successful")
 
     def check_authorization(self):
