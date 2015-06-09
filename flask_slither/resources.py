@@ -131,15 +131,16 @@ class BaseResource(MethodView):
             current_app.logger.info("Adding response headers")
             response.headers.add('Cache-Control',
                                  'max-age={},must-revalidate'.format(30))
+            if data is None and kwargs.get('mimetype', None) is None:
+                kwargs['mimetype'] = 'text/plain'
+
+            response.mimetype = kwargs.get('mimetype', 'application/json')
             for h in kwargs.get('headers', []):
                 response.headers.add(h[0], h[1])
             if request.method == 'POST' and not has_errors and status == 201:
                 location = "{}/{}".format(self._url, data['id'])
                 response.headers.add('location', location)
             response.expires = time.time() + 30
-
-            if data is not None:
-                response.mimetype = "application/json"
             current_app.logger.debug("Headers: {}".format(response.headers))
         if kwargs.get('abort', False):
             abort(response)
