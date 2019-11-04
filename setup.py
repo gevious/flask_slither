@@ -23,12 +23,12 @@ setup(
     include_package_data=True,
     platforms='any',
     install_requires=[
-        'Flask==0.10.1',
+        'Flask==1.0',
         'pymongo==2.6',
         'inflect==0.2.5'
     ],
     tests_require=[
-        'Flask==0.10.1',
+        'Flask==1.0',
         'inflect==0.2.5',
         'pymongo==2.6',
         'nose==1.3.3'
